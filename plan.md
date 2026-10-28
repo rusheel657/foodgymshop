@@ -3,7 +3,7 @@
 Private, minimalist Android app (APK). Three tabs — **Food**, **Gym**, **Shop** — plus **Profile**.
 Built for one user now; an email allowlist lets friends in later without a rewrite.
 
-Facts below were checked on 2026-10-28. Re-check versions when scaffolding (Phase 1).
+Facts below were checked on 2026-10-28. Versions confirmed at scaffold: Expo SDK 58, React Native 0.88.
 
 ---
 
@@ -11,10 +11,10 @@ Facts below were checked on 2026-10-28. Re-check versions when scaffolding (Phas
 
 | Concern | Choice | Why / limit |
 |---|---|---|
-| App | **Expo SDK 58** (React Native, TypeScript), `expo-router` | Latest SDK (released 2026-10-15). Android now, iOS later from same code. |
+| App | **Expo SDK 58** (React Native 0.88, TypeScript), `expo-router` native tabs | Latest SDK (released 2026-10-15). Android now, iOS later from same code. |
 | On-device data | `expo-sqlite` — **source of truth** | Offline-first; gym never needs signal. |
 | Backend | **New, dedicated Supabase project** (free) | Free plan allows **2 active projects** → no sharing with your other app. 500 MB DB, 1 GB storage, 500k Edge Function calls, 50k MAU. Pauses after 1 week inactivity — fine with daily use. |
-| Auth | Supabase Auth + Google (native sign-in via `@react-native-google-signin/google-signin` → `signInWithIdToken`) | Allowlist of emails. |
+| Auth | Supabase Auth + Google via **browser sign-in** (`signInWithOAuth` + `expo-web-browser`, redirect back to the app) | Works in Expo Go and the APK. Uses the Web client only — no Android client / SHA-1. Allowlist of emails + Google "Testing" test users. |
 | Photo AI | **Gemini `gemini-3.8-flash`** (free: 5/min, **20/day**) → on rate-limit error, automatic fallback to `gemini-3.5-flash-lite` (free: 15/min, 500/day). Called only from a Supabase Edge Function | Key never ships in the APK. Free tier: inputs may be used by Google to improve products (accepted). Limits read from AI Studio on 2026-10-28. |
 | Food macros | **USDA FoodData Central** (via Edge Function proxy, free key) + **Open Food Facts** barcode lookup (no key, direct) | |
 | Exercises | **free-exercise-db** (Unlicense / public domain, 800+ exercises, JPG images) | Bundle the JSON; load images from `raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/<path>`, cached by `expo-image`, shown greyscale. |
@@ -25,7 +25,7 @@ Facts below were checked on 2026-10-28. Re-check versions when scaffolding (Phas
 **Why not Firebase:** Cloud Functions and new Cloud Storage buckets need the pay-as-you-go (Blaze) plan with a card on file. Supabase does everything above with no card.
 **Not used:** Vercel (no website), Trigger.dev (no long jobs), ImageKit.
 
-> ⚠️ Google sign-in uses native code, so the app **does not run in Expo Go**. We use a **development build** (your own debug APK with live reload) from day one.
+> **Development runs in Expo Go** (`npm start` → scan with the Expo Go app): no cloud builds or queue during development. Every library in this plan is included in Expo Go. Only the final APK (Phase 8) needs a build. A development-build APK from Phase 1 is installed as a backup.
 
 ---
 
@@ -35,7 +35,8 @@ Every synced table has: `id uuid` (generated on the phone), `user_id uuid`, `upd
 
 | Table | Key fields |
 |---|---|
-| `profile` | sex, birth_date, height_cm, activity_level (1.2/1.375/1.55/1.725/1.9), goal (`lose`/`gain`/`maintain`), goal_weight_kg, rate_kg_week (0.25/0.5/0.75), protein_g_per_lb (0.8–1.0), carb_ratio (0–1, fat = 1 − carb), calorie_override (null = auto), theme (`dark`/`light`) |
+| `profile` | sex, birth_date, height_cm, activity_level (1.2/1.375/1.55/1.725/1.9), goal (`lose`/`gain`/`maintain`), goal_weight_kg, rate_kg_week (0.25/0.5/0.75), protein_g_per_lb (0.8–1.0), carb_ratio (0–1, fat = 1 − carb), calorie_override (null = auto) |
+| *(device-local, not synced)* | theme (`dark` default / `light`) in `expo-sqlite/kv-store` |
 | `weight_logs` | date (unique per user), weight_kg |
 | `foods` (My Diet) | name, kcal/protein/carbs/fat **per 100 g**, default_grams, source (`usda`/`off`/`manual`), source_id, barcode, shop_unit, shop_qty |
 | `meals` | name, ref_photo_paths (text[] , max 2) |
@@ -100,26 +101,27 @@ Gemini failure / cap hit → error text + quick-add button. Model ID lives in on
 Each phase ends with something you can use on the phone.
 
 ### Phase 0 — Accounts & tools (you, ~1 hour, guided)
-- [ ] Install Node LTS, Git, Android Studio (only for `adb` + building locally); enable Developer Options + USB debugging on your phone.
-- [ ] Create **new** Supabase project (separate from your other app). Note URL + anon key.
-- [ ] Google Cloud project → OAuth consent screen → **Web** client ID (for Supabase) + **Android** client ID with your debug **and** release SHA-1 fingerprints. Paste Web client ID/secret into Supabase → Auth → Google.
-- [ ] Google AI Studio → Gemini API key. Check free limits in AI Studio's rate-limit page.
-- [ ] api.data.gov → USDA FoodData Central key.
-- [ ] Expo account (`npx expo login`).
+- [x] Node, Git, adb present; Android Studio skipped (builds run on EAS).
+- [x] Create **new** Supabase project (separate from your other app). Note URL + anon key.
+- [x] Google Cloud project → Google Auth Platform (External, Testing, you as test user) → **Web** client ID with the Supabase callback URL. Client ID/secret pasted into Supabase → Auth → Google.
+- [x] Google AI Studio → Gemini API key. Check free limits in AI Studio's rate-limit page.
+- [x] api.data.gov → USDA FoodData Central key.
+- [x] Expo account (`eas login`).
 **Done when:** all keys are in a password manager, none in chat or git.
 
 ### Phase 1 — Skeleton on your phone
-- [ ] `npx create-expo-app@latest` (confirm SDK 58), TypeScript, `expo-router`, git repo.
-- [ ] Theme tokens: black/white/greys + one muted green accent; dark default, light toggle.
-- [ ] Tabs: Food · Gym · Shop · Profile (icons, empty states).
-- [ ] `expo-sqlite` with numbered SQL migrations (`PRAGMA user_version`); all tables from §2.
-- [ ] Development build installed on phone via USB.
-- [ ] Check: free-exercise-db image renders greyscale (`filter: 'grayscale(1)'` style) — if not supported, fall back to a tinted overlay.
+- [x] `npx create-expo-app@latest` (SDK 58), TypeScript, `expo-router`, git repo.
+- [x] Theme tokens: black/white/greys + one muted green accent; dark default, light toggle (Profile).
+- [x] Tabs: Food · Gym · Shop · Profile (Material icons, empty states).
+- [x] `expo-sqlite` with numbered SQL migrations (`PRAGMA user_version`); all tables from §2. Self-check: `npm run test:schema`.
+- [x] EAS project linked; `development` + `preview` APK profiles in `eas.json`; Android keystore created by EAS.
+- [x] Runs on your phone in Expo Go (development-build APK also installed as a backup).
+- [x] Checked: free-exercise-db images render greyscale with the `filter: 'grayscale(1)'` style.
 **Done when:** app opens on your phone with 4 empty tabs in both themes.
 
 ### Phase 2 — Auth, onboarding, targets
 - [ ] Supabase migration: schema, RLS policies, `synced_at` triggers, `allowed_emails` + **before-user-created auth hook** rejecting other emails.
-- [ ] Google sign-in → session persisted (`expo-secure-store`). Rejected email → clear message.
+- [ ] Browser Google sign-in → session persisted. Add the app's redirect URLs (Expo Go `exp://…` and `foodgymshop://`) to Supabase → Auth → URL Configuration. Rejected email → clear message.
 - [ ] Onboarding steps: sex, birth date, height, weight, activity, goal + goal weight + rate, protein slider (0.8–1.0 g/lb), carb/fat slider with live grams, summary with optional manual calorie override.
 - [ ] Targets maths in `lib/targets.ts` + unit tests (Jest via `jest-expo`).
 - [ ] Profile: edit all of the above; theme toggle; sign out.
@@ -165,7 +167,7 @@ Each phase ends with something you can use on the phone.
 
 ### Phase 8 — Ship
 - [ ] Sentry account (free) → React Native project → DSN into `.env`; wire JS + native crashes, upload source maps on build.
-- [ ] Release keystore; add its SHA-1 to the Google Android client.
+- [ ] Copy `.env` public values into EAS environment variables (`.env` is git-ignored, so cloud builds don't see it).
 - [ ] `eas build -p android --profile preview` → APK installed on phone.
 - [ ] EAS Update channel configured; push a trivial change and confirm it arrives.
 **Done when:** v1 definition met (below).
@@ -192,9 +194,9 @@ Health Connect, widgets, social, water tracking, supersets, plate calculator, pa
 8. Sentry deferred to Phase 8 (not needed to start building).
 
 ## 10. Open risks
-1. Google sign-in SHA-1 setup (debug + release + EAS keystores) — most common blocker.
+1. Browser sign-in redirect URLs differ between Expo Go and the APK → both must be on Supabase's allow list.
 2. Gemini free-tier limits/model names change → model ID kept in the Edge Function only.
 3. Android battery optimisation may delay rest notifications on some phones → test on yours; may need "exclude from battery optimisation".
-4. Greyscale image filter support on Android → checked in Phase 1.
+4. ~~Greyscale image filter on Android~~ — confirmed working.
 5. Free Supabase project pauses after 1 week idle — only matters on long breaks.
 6. Hand-written sync is the most complex code → covered by tests in Phase 7.
