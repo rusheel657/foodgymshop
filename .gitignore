@@ -41,7 +41,7 @@ yarn-error.*
 
 # secrets / config
 .env
-foodgymshop/
+/foodgymshop/
 
 # Vite / Capacitor
 dist/
