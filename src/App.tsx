@@ -5,6 +5,7 @@ import { ProfileForm } from '@/components/profile-form';
 import { Screen } from '@/components/ui';
 import { saveProfile } from '@/db/profile';
 import { AccountProvider, useAccount, useProfile, useSession } from '@/lib/account';
+import { NavProvider } from '@/lib/nav';
 import { checkForUpdate } from '@/lib/updater';
 import { SignInScreen } from '@/screens/sign-in';
 import { FoodScreen, GymScreen, ProfileScreen, ShopScreen } from '@/screens/tabs';
@@ -37,7 +38,13 @@ export function App() {
         <SignInScreen />
       ) : (
         <AccountProvider value={{ userId: session.user.id, email: session.user.email, profile: profile ?? null }}>
-          {profile ? <Tabs /> : <Onboarding />}
+          {profile ? (
+            <NavProvider>
+              <Tabs />
+            </NavProvider>
+          ) : (
+            <Onboarding />
+          )}
         </AccountProvider>
       )}
     </>

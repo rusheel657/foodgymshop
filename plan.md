@@ -134,10 +134,10 @@ Each phase ends with something you can use on the phone.
 **Done when:** fresh install → Google → onboarding → Food tab shows correct targets; returning launch skips onboarding.
 
 ### Phase 3 — My Diet + Shop
-- [ ] Edge Function `usda-search` (proxies key; returns name + macros per 100 g).
-- [ ] Add food: USDA search · barcode scan (`expo-camera` barcode mode → Open Food Facts) · manual. Always editable.
-- [ ] Meals: name, items (food + grams), up to 2 reference photos.
-- [ ] Shop tab: every My Diet food with unit, `−  qty  +`, "Clear list".
+- [x] Edge Function `usda-search` (proxies key; returns name + macros per 100 g). Deployed; needs secret `USDA_API_KEY`.
+- [x] Add food: USDA search · barcode scan (ML Kit Google code scanner → Open Food Facts) · manual. Always editable.
+- [x] Meals: name, items (food + grams), up to 2 reference photos.
+- [x] Shop tab: every My Diet food with unit, `−  qty  +`, "Clear list".
 **Done when:** your 10–12 foods and regular meals are entered; shopping list works offline.
 
 ### Phase 4 — Food logging

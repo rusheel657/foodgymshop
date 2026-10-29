@@ -40,3 +40,12 @@ export async function finishSignIn(link: string): Promise<string | null> {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   return error?.message ?? null;
 }
+
+export type UsdaFood = { id: string; name: string; kcal: number; protein: number; carbs: number; fat: number };
+
+/** USDA FoodData Central search via the usda-search Edge Function (keeps the API key off the phone). */
+export async function searchUsda(query: string): Promise<UsdaFood[]> {
+  const { data, error } = await supabase.functions.invoke<UsdaFood[]>('usda-search', { body: { query } });
+  if (error) throw new Error(`Food search failed: ${error.message}`);
+  return data ?? [];
+}

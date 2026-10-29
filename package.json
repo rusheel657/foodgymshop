@@ -7,14 +7,17 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'src/**/*.test.ts'",
+    "test": "node --test 'src/**/*.test.ts' 'supabase/**/*.test.ts'",
     "android": "vite build && cap sync android"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor-mlkit/barcode-scanning": "^8.2.1",
     "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
+    "@capacitor/camera": "^8.2.6",
     "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
     "@capawesome/capacitor-live-update": "^8.7.1",
     "@supabase/supabase-js": "^2.118.0",
     "jeep-sqlite": "^2.8.0",

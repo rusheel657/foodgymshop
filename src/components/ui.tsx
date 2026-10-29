@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { useNav } from '@/lib/nav';
+
 export function Screen({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="screen">
@@ -98,3 +100,61 @@ export function Button({
 
 /** Parses "72,5" or "72.5"; NaN when empty or invalid. */
 export const num = (s: string) => (s.trim() === '' ? NaN : Number(s.replace(',', '.')));
+
+/** A pushed page with a back button (see useNav). */
+export function Page({ title, children }: { title: string; children: ReactNode }) {
+  const nav = useNav();
+  return (
+    <main className="screen page">
+      <header className="page-head">
+        <button type="button" className="back" aria-label="Back" onClick={() => nav.pop()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <h1>{title}</h1>
+      </header>
+      {children}
+    </main>
+  );
+}
+
+export function SectionHead({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  return (
+    <div className="section-head">
+      <h2>{title}</h2>
+      {action && (
+        <button type="button" className="link" onClick={onAction}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function ListRow({ title, subtitle, onClick }: { title: string; subtitle?: string; onClick: () => void }) {
+  return (
+    <button type="button" className="list-row" onClick={onClick}>
+      <span>
+        <span className="list-title">{title}</span>
+        {subtitle && <span className="small muted">{subtitle}</span>}
+      </span>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 18l6-6-6-6" />
+      </svg>
+    </button>
+  );
+}
+
+export function TextInput({ label, value, onChange, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (text: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <span className="input">
+      <input aria-label={label} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </span>
+  );
+}
