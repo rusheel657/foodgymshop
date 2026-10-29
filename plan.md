@@ -7,6 +7,11 @@ Facts below were checked on 2026-10-28. Versions confirmed at scaffold: Expo SDK
 
 ---
 
+> **Stack change (2026-10-29):** the app was rebuilt with **Capacitor 8 + Vite + React** instead of Expo (the Expo version is kept at git tag `expo-final`).
+> Local DB is `@capacitor-community/sqlite`; sign-in uses the in-app browser + the `foodgymshop://auth` deep link; APKs are built by GitHub Actions and published as GitHub releases;
+> installed apps self-update (web bundle in the background via `@capawesome/capacitor-live-update`, or a prompt to download a new APK when native code changed).
+> Where this plan says Expo / EAS / Expo Go, read the Capacitor equivalent above.
+
 ## 1. Stack (all free tiers)
 
 | Concern | Choice | Why / limit |

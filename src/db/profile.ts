@@ -1,6 +1,4 @@
-import * as Crypto from 'expo-crypto';
-import type { SQLiteDatabase } from 'expo-sqlite';
-
+import { first, run, write } from '@/db/db';
 import { ageOn, computeTargets, type Goal, type Sex, type Targets } from '@/lib/targets';
 
 export type Profile = {
@@ -53,13 +51,13 @@ export function targetsFor(p: Profile, today = new Date()): Targets {
 }
 
 // One profile row per user, keyed by the user's id.
-export async function loadProfile(db: SQLiteDatabase, userId: string): Promise<Profile | null> {
-  const r = await db.getFirstAsync<Row>(
+export async function loadProfile(userId: string): Promise<Profile | null> {
+  const r = await first<Row>(
     `SELECT p.*, (SELECT w.weight_kg FROM weight_logs w
                   WHERE w.user_id = p.id AND w.deleted_at IS NULL
                   ORDER BY w.date DESC LIMIT 1) AS weight_kg
      FROM profile p WHERE p.id = ? AND p.deleted_at IS NULL`,
-    userId,
+    [userId],
   );
   if (!r || r.weight_kg == null) return null;
   return {
@@ -78,10 +76,10 @@ export async function loadProfile(db: SQLiteDatabase, userId: string): Promise<P
 }
 
 /** Upserts the profile; logs today's weight only when it changed. */
-export async function saveProfile(db: SQLiteDatabase, userId: string, p: Profile, previousWeightKg?: number) {
+export async function saveProfile(userId: string, p: Profile, previousWeightKg?: number) {
   const now = new Date().toISOString();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
+  await write(['profile', 'weight_logs'], async () => {
+    await run(
       `INSERT INTO profile (id, user_id, updated_at, dirty, sex, birth_date, height_cm, activity_level, goal,
                             goal_weight_kg, rate_kg_week, protein_g_per_lb, carb_ratio, calorie_override)
        VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -91,15 +89,15 @@ export async function saveProfile(db: SQLiteDatabase, userId: string, p: Profile
          activity_level = excluded.activity_level, goal = excluded.goal, goal_weight_kg = excluded.goal_weight_kg,
          rate_kg_week = excluded.rate_kg_week, protein_g_per_lb = excluded.protein_g_per_lb,
          carb_ratio = excluded.carb_ratio, calorie_override = excluded.calorie_override`,
-      userId, userId, now, p.sex, p.birthDate, p.heightCm, p.activity, p.goal,
-      p.goalWeightKg, p.rateKgWeek, p.proteinGPerLb, p.carbRatio, p.calorieOverride,
+      [userId, userId, now, p.sex, p.birthDate, p.heightCm, p.activity, p.goal,
+        p.goalWeightKg, p.rateKgWeek, p.proteinGPerLb, p.carbRatio, p.calorieOverride],
     );
     if (p.weightKg !== previousWeightKg) {
-      await db.runAsync(
+      await run(
         `INSERT INTO weight_logs (id, user_id, updated_at, dirty, date, weight_kg) VALUES (?, ?, ?, 1, ?, ?)
          ON CONFLICT (user_id, date) DO UPDATE SET
            weight_kg = excluded.weight_kg, updated_at = excluded.updated_at, dirty = 1, deleted_at = NULL`,
-        Crypto.randomUUID(), userId, now, localDate(), p.weightKg,
+        [crypto.randomUUID(), userId, now, localDate(), p.weightKg],
       );
     }
   });

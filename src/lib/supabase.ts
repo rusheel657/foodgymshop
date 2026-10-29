@@ -1,49 +1,42 @@
-import 'expo-sqlite/localStorage/install';
-import 'react-native-url-polyfill/auto';
-
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
-import { AppState } from 'react-native';
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-if (!url || !key) throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL / _PUBLISHABLE_KEY in .env');
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+if (!url || !key) throw new Error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY in .env');
+
+const native = Capacitor.isNativePlatform();
+
+// The APK comes back via the foodgymshop:// deep link; the browser dev build comes back to its own origin.
+// Both must be listed under Supabase → Authentication → URL Configuration → Redirect URLs.
+export const AUTH_REDIRECT = native ? 'foodgymshop://auth' : window.location.origin;
 
 export const supabase = createClient(url, key, {
-  auth: {
-    storage: localStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-    flowType: 'pkce',
-  },
+  auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: !native },
 });
 
-// Only refresh tokens while the app is in the foreground.
-AppState.addEventListener('change', (state) => {
-  if (state === 'active') supabase.auth.startAutoRefresh();
-  else supabase.auth.stopAutoRefresh();
-});
-
-/** Opens Google sign-in in a browser tab. Returns an error message, or null on success/cancel. */
+/** Starts Google sign-in. On Android it finishes in finishSignIn() when the deep link comes back. */
 export async function signInWithGoogle(): Promise<string | null> {
-  // exp://<ip>:8081/--/auth in Expo Go, foodgymshop://auth in the APK. Both must be allowed in Supabase.
-  const redirectTo = Linking.createURL('auth');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo, skipBrowserRedirect: true },
+    options: { redirectTo: AUTH_REDIRECT, skipBrowserRedirect: native },
   });
   if (error) return error.message;
+  if (native) await Browser.open({ url: data.url });
+  return null;
+}
 
-  const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (res.type !== 'success') return null;
-
-  // Errors can come back in the query or the #fragment; fold both into one query string.
-  const { queryParams } = Linking.parse(res.url.replace('#', res.url.includes('?') ? '&' : '?'));
-  if (queryParams?.error_description) return String(queryParams.error_description);
-  if (typeof queryParams?.code !== 'string') return 'Sign-in failed: no code returned.';
-
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(queryParams.code);
-  return exchangeError?.message ?? null;
+/** Handles foodgymshop://auth?code=… Returns an error message, or null on success. */
+export async function finishSignIn(link: string): Promise<string | null> {
+  await Browser.close().catch(() => {});
+  const u = new URL(link);
+  // Errors can come back in the query or the #fragment.
+  const params = new URLSearchParams(`${u.search.slice(1)}&${u.hash.slice(1)}`);
+  const message = params.get('error_description');
+  if (message) return message;
+  const code = params.get('code');
+  if (!code) return 'Sign-in failed: no code returned.';
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  return error?.message ?? null;
 }

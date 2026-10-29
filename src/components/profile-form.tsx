@@ -1,19 +1,12 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
-import Slider from '@react-native-community/slider';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Field, NumberInput, num, Segmented } from '@/components/form';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Button, Field, NumberInput, num, Segmented } from '@/components/ui';
 import { localDate, targetsFor, type Profile } from '@/db/profile';
-import { useTheme } from '@/hooks/use-theme';
 import { ACTIVITY_LEVELS, ageOn, RATES, type Goal, type Sex } from '@/lib/targets';
 
 type Draft = {
   sex: Sex | null;
-  birthDate: string | null;
+  birthDate: string;
   height: string;
   weight: string;
   activity: number;
@@ -66,10 +59,9 @@ export function ProfileForm({
   submitLabel: string;
   onSubmit: (profile: Profile) => Promise<void>;
 }) {
-  const colors = useTheme();
   const [d, setD] = useState<Draft>({
     sex: initial?.sex ?? null,
-    birthDate: initial?.birthDate ?? null,
+    birthDate: initial?.birthDate ?? '',
     height: str(initial?.heightCm),
     weight: str(initial?.weightKg),
     activity: initial?.activity ?? 1.55,
@@ -80,7 +72,6 @@ export function ProfileForm({
     carbRatio: initial?.carbRatio ?? 0.6,
     override: str(initial?.calorieOverride),
   });
-  const [showPicker, setShowPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<Draft>) => setD((prev) => ({ ...prev, ...patch }));
 
@@ -88,11 +79,6 @@ export function ProfileForm({
   const profile = typeof result === 'string' ? null : result;
   const targets = profile && targetsFor(profile);
   const autoKcal = profile && targetsFor({ ...profile, calorieOverride: null }).kcal;
-  const sliderColors = {
-    minimumTrackTintColor: colors.text,
-    maximumTrackTintColor: colors.border,
-    thumbTintColor: colors.text,
-  };
 
   async function submit() {
     if (!profile) return;
@@ -105,7 +91,7 @@ export function ProfileForm({
   }
 
   return (
-    <View style={styles.form}>
+    <div className="stack">
       <Field label="Sex">
         <Segmented
           options={[
@@ -118,37 +104,25 @@ export function ProfileForm({
       </Field>
 
       <Field label="Birth date">
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setShowPicker(true)}
-          style={[styles.dateButton, { backgroundColor: colors.backgroundElement }]}>
-          <ThemedText themeColor={d.birthDate ? 'text' : 'textSecondary'}>{d.birthDate ?? 'Select'}</ThemedText>
-        </Pressable>
-        {showPicker && (
-          <DateTimePicker
-            mode="date"
-            value={d.birthDate ? new Date(`${d.birthDate}T12:00:00`) : new Date(2000, 0, 1)}
-            maximumDate={new Date()}
-            onChange={(event, date) => {
-              setShowPicker(false);
-              if (event.type === 'set' && date) set({ birthDate: localDate(date) });
-            }}
+        <span className="input">
+          <input
+            type="date"
+            aria-label="Birth date"
+            value={d.birthDate}
+            max={localDate()}
+            onChange={(e) => set({ birthDate: e.target.value })}
           />
-        )}
+        </span>
       </Field>
 
-      <View style={styles.row}>
-        <View style={styles.flex}>
-          <Field label="Height">
-            <NumberInput label="Height" value={d.height} onChangeText={(height) => set({ height })} suffix="cm" />
-          </Field>
-        </View>
-        <View style={styles.flex}>
-          <Field label="Weight">
-            <NumberInput label="Weight" value={d.weight} onChangeText={(weight) => set({ weight })} suffix="kg" />
-          </Field>
-        </View>
-      </View>
+      <div className="row">
+        <Field label="Height">
+          <NumberInput label="Height" value={d.height} onChange={(height) => set({ height })} suffix="cm" />
+        </Field>
+        <Field label="Weight">
+          <NumberInput label="Weight" value={d.weight} onChange={(weight) => set({ weight })} suffix="kg" />
+        </Field>
+      </div>
 
       <Field label="Activity" hint={ACTIVITY_LEVELS.find((a) => a.value === d.activity)?.hint}>
         <Segmented vertical options={ACTIVITY_LEVELS} value={d.activity} onChange={(activity) => set({ activity })} />
@@ -172,7 +146,7 @@ export function ProfileForm({
             <NumberInput
               label="Goal weight"
               value={d.goalWeight}
-              onChangeText={(goalWeight) => set({ goalWeight })}
+              onChange={(goalWeight) => set({ goalWeight })}
               suffix="kg"
             />
           </Field>
@@ -189,28 +163,28 @@ export function ProfileForm({
       <Field
         label={`Protein · ${d.protein.toFixed(2)} g per lb`}
         hint={targets ? `${targets.protein} g per day` : undefined}>
-        <Slider
-          accessibilityLabel="Protein grams per pound"
-          minimumValue={0.8}
-          maximumValue={1}
+        <input
+          type="range"
+          aria-label="Protein grams per pound"
+          min={0.8}
+          max={1}
           step={0.05}
           value={d.protein}
-          onValueChange={(protein) => set({ protein })}
-          {...sliderColors}
+          onChange={(e) => set({ protein: Number(e.target.value) })}
         />
       </Field>
 
       <Field
         label={`Carbs ${Math.round(d.carbRatio * 100)}% · Fat ${Math.round((1 - d.carbRatio) * 100)}%`}
         hint={targets ? `${targets.carbs} g carbs · ${targets.fat} g fat` : 'Of the calories left after protein'}>
-        <Slider
-          accessibilityLabel="Carbs to fat ratio"
-          minimumValue={0.2}
-          maximumValue={0.8}
+        <input
+          type="range"
+          aria-label="Carbs to fat ratio"
+          min={0.2}
+          max={0.8}
           step={0.05}
           value={d.carbRatio}
-          onValueChange={(carbRatio) => set({ carbRatio })}
-          {...sliderColors}
+          onChange={(e) => set({ carbRatio: Number(e.target.value) })}
         />
       </Field>
 
@@ -218,37 +192,27 @@ export function ProfileForm({
         <NumberInput
           label="Calorie target override"
           value={d.override}
-          onChangeText={(override) => set({ override })}
+          onChange={(override) => set({ override })}
           placeholder={autoKcal ? `${autoKcal} (auto)` : 'Auto'}
           suffix="kcal"
         />
       </Field>
 
-      <ThemedView type="backgroundElement" style={styles.summary}>
+      <div className="card">
         {targets ? (
           <>
-            <ThemedText type="subtitle">{targets.kcal} kcal</ThemedText>
-            <ThemedText themeColor="textSecondary">
+            <h2>{targets.kcal} kcal</h2>
+            <p className="muted">
               P {targets.protein} g · C {targets.carbs} g · F {targets.fat} g
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Maintenance ≈ {targets.maintenance} kcal
-            </ThemedText>
+            </p>
+            <p className="small muted">Maintenance ≈ {targets.maintenance} kcal</p>
           </>
         ) : (
-          <ThemedText themeColor="textSecondary">{result as string}</ThemedText>
+          <p className="muted">{result as string}</p>
         )}
-      </ThemedView>
+      </div>
 
-      <Button title={submitLabel} onPress={submit} disabled={!profile} busy={busy} />
-    </View>
+      <Button title={submitLabel} onClick={submit} disabled={!profile} busy={busy} />
+    </div>
   );
 }
-
-const styles = StyleSheet.create({
-  form: { gap: Spacing.four },
-  row: { flexDirection: 'row', gap: Spacing.three },
-  flex: { flex: 1 },
-  dateButton: { height: 48, borderRadius: Spacing.three, paddingHorizontal: Spacing.three, justifyContent: 'center' },
-  summary: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.one },
-});

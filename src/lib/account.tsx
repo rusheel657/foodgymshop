@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
-import { addDatabaseChangeListener, useSQLiteContext } from 'expo-sqlite';
 import { createContext, useContext, useEffect, useState } from 'react';
 
+import { onChange } from '@/db/db';
 import { loadProfile, type Profile } from '@/db/profile';
 import { supabase } from '@/lib/supabase';
 
@@ -30,16 +30,14 @@ export function useSession() {
 
 /** Live profile for a user: undefined while loading, null if onboarding isn't done. */
 export function useProfile(userId?: string) {
-  const db = useSQLiteContext();
   const [state, setState] = useState<{ userId: string; profile: Profile | null }>();
   useEffect(() => {
     if (!userId) return;
-    const load = () => loadProfile(db, userId).then((profile) => setState({ userId, profile }));
+    const load = () => loadProfile(userId).then((profile) => setState({ userId, profile }));
     load();
-    const sub = addDatabaseChangeListener(({ tableName }) => {
-      if (tableName === 'profile' || tableName === 'weight_logs') load();
+    return onChange((tables) => {
+      if (tables.includes('profile') || tables.includes('weight_logs')) load();
     });
-    return () => sub.remove();
-  }, [db, userId]);
+  }, [userId]);
   return state && state.userId === userId ? state.profile : undefined;
 }

@@ -1,0 +1,70 @@
+# Every push to main builds a signed APK + a web bundle and publishes them as a GitHub release.
+# Installed apps read latest.json from the newest release and update themselves (src/lib/updater.ts).
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      N: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_BUNDLE: ${{ github.run_number }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - run: npx cap sync android
+
+      - name: Build signed APK
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias=release \
+            -Pandroid.injected.signing.key.password="$KEYSTORE_PASSWORD"
+
+      - name: Package release
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk foodgymshop.apk
+          (cd dist && zip -qr "../bundle-$N.zip" .)
+          # Bump versionCode in android/app/build.gradle whenever native code/plugins change:
+          # apps with an older versionCode are then told to download the new APK instead of a web bundle.
+          NATIVE=$(grep -oP 'versionCode \K\d+' android/app/build.gradle)
+          SHA=$(sha256sum "bundle-$N.zip" | cut -d' ' -f1)
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download/v$N"
+          jq -n --arg b "$N" --argjson n "$NATIVE" --arg u "$BASE/bundle-$N.zip" --arg s "$SHA" --arg a "$BASE/foodgymshop.apk" \
+            '{bundle: $b, native: $n, bundleUrl: $u, bundleSha256: $s, apkUrl: $a}' > latest.json
+          cat latest.json
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v$N" foodgymshop.apk "bundle-$N.zip" latest.json --title "v$N" --notes "Build $N from ${GITHUB_SHA::7}"

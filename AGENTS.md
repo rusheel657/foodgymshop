@@ -1,41 +1,25 @@
-This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+This is a Capacitor 8 + Vite + React + TypeScript Android app (Food · Gym · Shop). See plan.md for the product plan.
 
-## Expo has changed — do not trust your training data
+## Layout
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
-
-1. Read the major version of the `expo` package in `package.json`.
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+- `src/` — the web app (runs inside the Android WebView). Screens in `src/screens/`, shared UI in `src/components/`.
+- `src/db/` — local SQLite (`@capacitor-community/sqlite`), the offline source of truth. Change the schema only by appending to `MIGRATIONS` in `schema.ts`.
+- `android/` — native project, committed. Edit it by hand only when needed (e.g. `AndroidManifest.xml`); run `npx cap sync android` after adding plugins.
+- `.github/workflows/release.yml` — every push to `main` builds a signed APK and publishes a GitHub release that installed apps self-update from.
 
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
-
 ```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
+npm run dev        # browser preview at localhost:5173 (SQLite via wasm)
+npm run typecheck
+npm test           # node --test on src/**/*.test.ts
+npm run build      # typecheck + production web build into dist/
+npx cap sync android
 ```
 
-Run lint and typecheck before declaring any task done.
+Run typecheck and tests before declaring any task done. Local APK builds need JDK 21 + Android SDK; CI does it otherwise.
 
-## Navigation & Routing
+## Updates
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
-
-## Building with EAS
-
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
-
-## Rules
-
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+- Web-only changes ship as live updates (downloaded in the background, applied on next app start).
+- If you add/upgrade a native plugin or touch `android/`, bump `versionCode` in `android/app/build.gradle` so installed apps are told to download the new APK instead.

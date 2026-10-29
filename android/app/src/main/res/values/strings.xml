@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Food Gym Shop</string>
+    <string name="title_activity_main">Food Gym Shop</string>
+    <string name="package_name">com.rusheelnujetti.foodgymshop</string>
+    <string name="custom_url_scheme">com.rusheelnujetti.foodgymshop</string>
+</resources>
