@@ -1,6 +1,7 @@
 import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { CapacitorHttp } from '@capacitor/core';
 
-import { fromOpenFoodFacts, type FoodDraft } from '@/lib/nutrition';
+import { fromOffSearch, fromOpenFoodFacts, type FoodDraft } from '@/lib/nutrition';
 
 /** Opens Google's scanner UI (no camera permission needed). Returns the code, or null if cancelled. */
 export async function scanBarcode(): Promise<string | null> {
@@ -29,4 +30,15 @@ export async function lookupBarcode(code: string): Promise<FoodDraft | null> {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Open Food Facts error ${res.status}`);
   return fromOpenFoodFacts(code, await res.json());
+}
+
+/** Open Food Facts text search: branded / supermarket products (good UK coverage). */
+export async function searchOff(query: string): Promise<FoodDraft[]> {
+  // Native HTTP: this endpoint doesn't send CORS headers for the app's origin.
+  const res = await CapacitorHttp.get({
+    url: 'https://search.openfoodfacts.org/search',
+    params: { q: query, page_size: '25', fields: 'code,product_name,brands,nutriments' },
+  });
+  if (res.status !== 200) throw new Error(`Open Food Facts error ${res.status}`);
+  return fromOffSearch(typeof res.data === 'string' ? JSON.parse(res.data) : res.data);
 }

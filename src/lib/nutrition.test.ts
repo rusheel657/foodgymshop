@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOpenFoodFacts, macrosFor, sumMacros } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -39,4 +39,19 @@ test('Open Food Facts kJ-only product converts to kcal', () => {
 test('Open Food Facts unknown or incomplete product', () => {
   assert.equal(fromOpenFoodFacts('1', { status: 0 }), null);
   assert.equal(fromOpenFoodFacts('1', { status: 1, product: { nutriments: { proteins_100g: 1 } } }), null);
+});
+
+test('Open Food Facts search hits (trimmed real response for "lamb mince 20% sainsburys")', () => {
+  const json = {
+    hits: [
+      { code: '01621372', product_name: '20% Fat Lamb Mince', brands: ["Sainsbury's"],
+        nutriments: { 'energy-kcal_100g': 269, proteins_100g: 17.6, carbohydrates_100g: 0, fat_100g: 20 } },
+      { code: '6281051000315', product_name: 'Minced Lamb', brands: ['Habra'], nutriments: {} },
+      { product_name: 'No code', nutriments: { 'energy-kcal_100g': 1, proteins_100g: 1, carbohydrates_100g: 1, fat_100g: 1 } },
+    ],
+  };
+  assert.deepEqual(fromOffSearch(json), [
+    { name: "20% Fat Lamb Mince (Sainsbury's)", kcal: 269, protein: 17.6, carbs: 0, fat: 20, barcode: '01621372' },
+  ]);
+  assert.deepEqual(fromOffSearch({}), []);
 });

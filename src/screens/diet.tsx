@@ -5,9 +5,9 @@ import {
   deleteFood, deleteMeal, listFoods, listMeals, mealMacros, saveFood, saveMeal, type Food, type Meal,
 } from '@/db/diet';
 import { useAccount } from '@/lib/account';
-import { lookupBarcode, scanBarcode } from '@/lib/barcode';
+import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
-import { formatMacros, macrosFor, sumMacros } from '@/lib/nutrition';
+import { formatMacros, macrosFor, sumMacros, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
 import { useLive } from '@/lib/use-live';
@@ -65,7 +65,7 @@ export function MyDietScreen() {
 function AddFoodScreen() {
   const nav = useNav();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<UsdaFood[] | null>(null);
+  const [results, setResults] = useState<{ off: FoodDraft[]; usda: UsdaFood[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +81,15 @@ function AddFoodScreen() {
     }
   }
 
-  const search = () => attempt(async () => setResults(await searchUsda(query.trim())));
+  // Both sources at once; one failing still shows the other's results.
+  const search = () =>
+    attempt(async () => {
+      const q = query.trim();
+      const [off, usda] = await Promise.allSettled([searchOff(q), searchUsda(q)]);
+      setResults({ off: off.status === 'fulfilled' ? off.value : [], usda: usda.status === 'fulfilled' ? usda.value : [] });
+      const failed = [off, usda].filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+      if (failed.length) setError(failed.map((r) => (r.reason as Error).message).join(' · '));
+    });
 
   const scan = () =>
     attempt(async () => {
@@ -106,7 +114,7 @@ function AddFoodScreen() {
           e.preventDefault();
           if (query.trim()) search();
         }}>
-        <TextInput label="Search foods" value={query} onChange={setQuery} placeholder="Search USDA, e.g. lamb" />
+        <TextInput label="Search foods" value={query} onChange={setQuery} placeholder="e.g. lamb mince 20% sainsburys" />
         <button type="submit" className="button primary small" disabled={busy || !query.trim()}>
           Search
         </button>
@@ -120,25 +128,47 @@ function AddFoodScreen() {
         />
       </div>
       {error && <p className="small danger">{error}</p>}
-      {results && results.length === 0 && <EmptyState text="No matches." />}
-      <div className="list">
-        {results?.map((r) => (
-          <ListRow
-            key={r.id}
-            title={r.name}
-            subtitle={`100 g · ${formatMacros(r)}`}
-            onClick={() =>
-              nav.push(
-                <FoodFormScreen
-                  food={newFood({ name: r.name, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat, source: 'usda', sourceId: r.id })}
-                  isNew
-                  popCount={2}
-                />,
-              )
-            }
-          />
-        ))}
-      </div>
+      {results && results.off.length + results.usda.length === 0 && <EmptyState text="No matches." />}
+      {!!results?.off.length && (
+        <section className="stack-sm">
+          <h2 className="label">Products · Open Food Facts</h2>
+          <div className="list">
+            {results.off.map((r) => (
+              <ListRow
+                key={r.barcode}
+                title={r.name}
+                subtitle={`100 g · ${formatMacros(r)}`}
+                onClick={() =>
+                  nav.push(<FoodFormScreen food={newFood({ ...r, source: 'off', sourceId: r.barcode })} isNew popCount={2} />)
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      {!!results?.usda.length && (
+        <section className="stack-sm">
+          <h2 className="label">Generic · USDA</h2>
+          <div className="list">
+            {results.usda.map((r) => (
+              <ListRow
+                key={r.id}
+                title={r.name}
+                subtitle={`100 g · ${formatMacros(r)}`}
+                onClick={() =>
+                  nav.push(
+                    <FoodFormScreen
+                      food={newFood({ name: r.name, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat, source: 'usda', sourceId: r.id })}
+                      isNew
+                      popCount={2}
+                    />,
+                  )
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </Page>
   );
 }

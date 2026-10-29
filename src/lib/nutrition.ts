@@ -22,13 +22,13 @@ export function formatMacros(m: Macros) {
 
 export type FoodDraft = Macros & { name: string; barcode?: string };
 
-/** Open Food Facts /api/v2/product/<code>.json → per-100 g food, or null if unknown / no nutrition data. */
-export function fromOpenFoodFacts(code: string, json: unknown): FoodDraft | null {
-  type Off = { status?: number; product?: { product_name?: string; brands?: string; nutriments?: Record<string, unknown> } };
-  const { status, product: p } = (json ?? {}) as Off;
-  const n = p?.nutriments;
-  if (status !== 1 || !p || !n) return null;
-  const num = (k: string) => (typeof n[k] === 'number' ? (n[k] as number) : Number(n[k]));
+type OffProduct = { code?: string; product_name?: string; brands?: string | string[]; nutriments?: Record<string, unknown> };
+
+/** One Open Food Facts product → per-100 g food, or null if it has no usable nutrition data. */
+export function fromOffProduct(code: string, p: OffProduct): FoodDraft | null {
+  const n = p.nutriments;
+  if (!n) return null;
+  const num = (k: string) => (typeof n[k] === 'number' ? (n[k] as number) : Number(n[k] ?? NaN));
   let kcal = num('energy-kcal_100g');
   // Some products only list kJ.
   if (!Number.isFinite(kcal)) kcal = num('energy_100g') / 4.184;
@@ -36,7 +36,23 @@ export function fromOpenFoodFacts(code: string, json: unknown): FoodDraft | null
   const carbs = num('carbohydrates_100g');
   const fat = num('fat_100g');
   if (![kcal, protein, carbs, fat].every(Number.isFinite)) return null;
-  const brand = p.brands?.split(',')[0]?.trim();
+  // The product API returns brands as "A, B"; the search API as ["A", "B"].
+  const brand = (Array.isArray(p.brands) ? p.brands[0] : p.brands?.split(',')[0])?.trim();
   const name = [p.product_name?.trim() || 'Unnamed product', brand && `(${brand})`].filter(Boolean).join(' ');
   return { name, kcal: Math.round(kcal), protein, carbs, fat, barcode: code };
+}
+
+/** Open Food Facts /api/v2/product/<code>.json → per-100 g food, or null if unknown / no nutrition data. */
+export function fromOpenFoodFacts(code: string, json: unknown): FoodDraft | null {
+  const { status, product } = (json ?? {}) as { status?: number; product?: OffProduct };
+  return status === 1 && product ? fromOffProduct(code, product) : null;
+}
+
+/** search.openfoodfacts.org response → foods that have full nutrition data. */
+export function fromOffSearch(json: unknown): FoodDraft[] {
+  const hits = ((json ?? {}) as { hits?: OffProduct[] }).hits ?? [];
+  return hits.flatMap((h) => {
+    const food = h.code ? fromOffProduct(h.code, h) : null;
+    return food ? [food] : [];
+  });
 }
