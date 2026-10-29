@@ -120,11 +120,12 @@ Each phase ends with something you can use on the phone.
 **Done when:** app opens on your phone with 4 empty tabs in both themes.
 
 ### Phase 2 — Auth, onboarding, targets
-- [ ] Supabase migration: schema, RLS policies, `synced_at` triggers, `allowed_emails` + **before-user-created auth hook** rejecting other emails.
-- [ ] Browser Google sign-in → session persisted. Add the app's redirect URLs (Expo Go `exp://…` and `foodgymshop://`) to Supabase → Auth → URL Configuration. Rejected email → clear message.
-- [ ] Onboarding steps: sex, birth date, height, weight, activity, goal + goal weight + rate, protein slider (0.8–1.0 g/lb), carb/fat slider with live grams, summary with optional manual calorie override.
-- [ ] Targets maths in `lib/targets.ts` + unit tests (Jest via `jest-expo`).
-- [ ] Profile: edit all of the above; theme toggle; sign out.
+- [x] `supabase/allowlist.sql`: `allowed_emails` + **before-user-created auth hook** rejecting other emails. *(You: run it in SQL Editor, enable the hook, add redirect URLs `exp://**` and `foodgymshop://**`.)*
+- [x] Browser Google sign-in (PKCE) → session persisted in `expo-sqlite` localStorage. Rejected email → message on the sign-in screen.
+- [x] Onboarding: one scrolling form — sex, birth date, height, weight, activity, goal + goal weight + rate, protein slider (0.8–1.0 g/lb), carb/fat slider with live grams, summary, optional calorie override.
+- [x] Targets maths in `lib/targets.ts` + unit tests (`npm test`, Node's built-in runner — no Jest).
+- [x] Profile: edit all of the above; theme toggle; sign out. Weight change → today's `weight_logs` entry.
+- [ ] Tested on phone: sign in, onboarding, targets, edit, sign out.
 **Done when:** fresh install → Google → onboarding → Food tab shows correct targets; returning launch skips onboarding.
 
 ### Phase 3 — My Diet + Shop
@@ -159,6 +160,7 @@ Each phase ends with something you can use on the phone.
 **Done when:** you can see last week's progress and export a file.
 
 ### Phase 7 — Sync
+- [ ] Server tables mirroring §2 + RLS (`user_id = auth.uid()`) + `synced_at` triggers (moved here from Phase 2: nothing uses them before sync).
 - [ ] Sync engine (§5) + unit tests for push/pull/LWW/soft-delete.
 - [ ] Photo uploads to `meal-photos` bucket (private, per-user folder policy).
 - [ ] "Last synced" + "Sync now" in Profile.
