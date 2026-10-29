@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ProfileForm } from '@/components/profile-form';
 import { Screen } from '@/components/ui';
 import { saveProfile } from '@/db/profile';
+import { addStarterFoods } from '@/db/starter-foods';
 import { AccountProvider, useAccount, useProfile, useSession } from '@/lib/account';
 import { NavProvider } from '@/lib/nav';
 import { checkForUpdate } from '@/lib/updater';
@@ -61,7 +62,11 @@ function Onboarding() {
 }
 
 function Tabs() {
+  const { userId } = useAccount();
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('food');
+  useEffect(() => {
+    addStarterFoods(userId).catch((e) => console.warn('Adding starter foods failed', e));
+  }, [userId]);
   const Current = TABS.find((t) => t.key === tab)!.Screen;
   return (
     <>
