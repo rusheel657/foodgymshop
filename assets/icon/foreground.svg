@@ -1,0 +1,29 @@
+<!-- Adaptive-icon foreground: 108×108 canvas, glyph inside the 66-unit safe circle. White on transparent. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <defs>
+    <g id="fork">
+      <rect x="46" y="24" width="4" height="18" rx="2"/>
+      <rect x="52" y="24" width="4" height="18" rx="2"/>
+      <rect x="58" y="24" width="4" height="18" rx="2"/>
+      <path d="M46 38H62V42C62 47 58.5 50 56.5 50H51.5C49.5 50 46 47 46 42Z"/>
+      <rect x="51.5" y="47" width="5" height="37" rx="2.5"/>
+    </g>
+    <!-- Cut a gap into the dumbbell where the fork crosses it. -->
+    <mask id="gap">
+      <rect width="108" height="108" fill="#fff"/>
+      <use href="#fork" transform="rotate(-45 54 54)" fill="#000" stroke="#000" stroke-width="7" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <g fill="#fff">
+    <g mask="url(#gap)">
+      <g transform="rotate(45 54 54)">
+        <rect x="52" y="27" width="4" height="54" rx="2"/>
+        <rect x="42" y="34" width="24" height="8" rx="2"/>
+        <rect x="42" y="66" width="24" height="8" rx="2"/>
+        <rect x="46" y="27" width="16" height="5" rx="2"/>
+        <rect x="46" y="76" width="16" height="5" rx="2"/>
+      </g>
+    </g>
+    <use href="#fork" transform="rotate(-45 54 54)"/>
+  </g>
+</svg>
