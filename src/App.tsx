@@ -6,6 +6,7 @@ import { Screen } from '@/components/ui';
 import { saveProfile } from '@/db/profile';
 import { addStarterFoods } from '@/db/starter-foods';
 import { AccountProvider, useAccount, useProfile, useSession } from '@/lib/account';
+import { tap } from '@/lib/haptics';
 import { animate } from '@/lib/motion';
 import { NavProvider } from '@/lib/nav';
 import { checkForUpdate } from '@/lib/updater';
@@ -76,7 +77,7 @@ function Tabs() {
       <Current />
       <nav className="tabbar">
         {TABS.map((t) => (
-          <button key={t.key} type="button" aria-current={t.key === tab} onClick={() => t.key !== tab && animate('fade', () => setTab(t.key))}>
+          <button key={t.key} type="button" aria-current={t.key === tab} onClick={() => t.key !== tab && (tap(), animate('fade', () => setTab(t.key)))}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d={t.icon} />
             </svg>

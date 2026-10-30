@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '@/App';
 import { openDb } from '@/db/db';
 import { applyTheme } from '@/lib/theme';
+import '@fontsource-variable/inter';
 import './styles.css';
 
 applyTheme();

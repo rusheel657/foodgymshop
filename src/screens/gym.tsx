@@ -9,6 +9,7 @@ import {
 } from '@/db/gym';
 import { useAccount } from '@/lib/account';
 import { epley, formatDuration, shape, volume, warmups } from '@/lib/gym';
+import { tap } from '@/lib/haptics';
 import { useNav } from '@/lib/nav';
 import { addRest, prepareRestNotifications, startRest, stopRest, useRest } from '@/lib/rest-timer';
 import { useLive } from '@/lib/use-live';
@@ -495,6 +496,7 @@ function SetRow({ set, label, previous, onTicked }: { set: WorkoutSet; label: st
         aria-label={done ? `Untick set ${label}` : `Tick set ${label}`}
         disabled={!done && (kgV === undefined || repsV === undefined || !repsV)}
         onClick={async () => {
+          tap();
           await updateSet(set.id, { completedAt: done ? null : new Date().toISOString() });
           if (!done && !set.isWarmup) onTicked();
         }}>
