@@ -7,7 +7,7 @@ export async function addPhoto(from: 'camera' | 'gallery'): Promise<string | nul
   const picked =
     from === 'camera'
       ? await Camera.takePhoto({ quality: 70, targetWidth: 1024, targetHeight: 1024, correctOrientation: true })
-      : (await Camera.chooseFromGallery({ limit: 1 })).results[0];
+      : (await Camera.chooseFromGallery({ limit: 1, quality: 80, targetWidth: 1600, targetHeight: 1600, correctOrientation: true })).results[0];
   if (!picked?.uri) return null;
   // The camera's file lives in the cache, which Android may clear; keep our own copy.
   // copy() needs the folder to exist; mkdir throws if it already does.
@@ -28,3 +28,19 @@ export async function deletePhoto(uri: string) {
 export const photoSrc = (uri: string) => Capacitor.convertFileSrc(uri);
 
 export const canUseCamera = Capacitor.isNativePlatform();
+
+/** Photo → base64 JPEG (no data: prefix), scaled so its longest side is at most `max` px. Keeps AI uploads small. */
+export async function photoBase64(uri: string, max = 1024): Promise<string> {
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('Could not read the photo.'));
+    img.src = photoSrc(uri);
+  });
+  const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+}

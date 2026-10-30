@@ -1,4 +1,3 @@
-import { Filesystem } from '@capacitor/filesystem';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button, EmptyState, ListRow, NumberInput, num, Page, SectionHead } from '@/components/ui';
@@ -7,7 +6,7 @@ import { deleteLog, saveLog, type FoodLog } from '@/db/log';
 import { useAccount } from '@/lib/account';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, sumMacros, toLogItems, type LogItem } from '@/lib/nutrition';
-import { deletePhoto, photoSrc } from '@/lib/photos';
+import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
 import { useLive } from '@/lib/use-live';
 import { FoodPickerScreen } from '@/screens/diet';
@@ -33,9 +32,9 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
     started.current = attempt;
     (async () => {
       try {
-        const [foods, meals, file] = await Promise.all([listFoods(), listMeals(), Filesystem.readFile({ path: photo })]);
+        const [foods, meals, image] = await Promise.all([listFoods(), listMeals(), photoBase64(photo)]);
         const ai = await analyzeMeal({
-          image: file.data as string,
+          image,
           foods: foods.map((f) => ({ id: f.id, name: f.name })),
           meals: meals.map((m) => ({
             id: m.id,
