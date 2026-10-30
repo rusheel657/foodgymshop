@@ -36,3 +36,27 @@ export function monthStats(days: Map<string, Macros>, target: Macros) {
     proteinHit: list.filter((m) => proteinHit(m.protein, target.protein)).length,
   };
 }
+
+/** Shifts a "YYYY-MM-DD" date by whole days. */
+export function addDays(date: string, days: number) {
+  const [y, m, d] = date.split('-').map(Number);
+  return ymd(new Date(y, m - 1, d + days));
+}
+
+/** The 7 dates (Monday first) of the week containing `date`. */
+export function weekOf(date: string): string[] {
+  const [y, m, d] = date.split('-').map(Number);
+  const monday = addDays(date, -((new Date(y, m - 1, d).getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+/** Consecutive days with food logged, ending today (or yesterday, so an unlogged morning doesn't reset it). */
+export function streak(logged: (date: string) => boolean, today: string) {
+  let day = logged(today) ? today : addDays(today, -1);
+  let n = 0;
+  while (logged(day)) {
+    n++;
+    day = addDays(day, -1);
+  }
+  return n;
+}

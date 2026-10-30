@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dayStatus, monthGrid, monthStats } from './history.ts';
+import { addDays, dayStatus, monthGrid, monthStats, streak, weekOf } from './history.ts';
 
 test('month grid starts on Monday and pads both ends', () => {
   const oct = monthGrid(2026, 9); // October 2026 starts on a Thursday
@@ -30,4 +30,19 @@ test('month stats average logged days only', () => {
     logged: 2, avg: { kcal: 1500, protein: 100, carbs: 150, fat: 50 }, onTarget: 1, proteinHit: 1,
   });
   assert.equal(monthStats(new Map(), target).logged, 0);
+});
+
+test('weeks run Monday to Sunday, across month ends', () => {
+  assert.deepEqual(weekOf('2026-10-30'), ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01']);
+  assert.equal(weekOf('2026-10-26')[0], '2026-10-26'); // a Monday
+  assert.equal(weekOf('2026-11-01')[0], '2026-10-26'); // a Sunday
+  assert.equal(addDays('2026-12-31', 1), '2027-01-01');
+});
+
+test('streak counts back from today, or from yesterday if today is empty', () => {
+  const days = new Set(['2026-10-27', '2026-10-28', '2026-10-29']);
+  const has = (d: string) => days.has(d);
+  assert.equal(streak(has, '2026-10-29'), 3);
+  assert.equal(streak(has, '2026-10-30'), 3); // nothing logged yet today
+  assert.equal(streak(has, '2026-10-31'), 0); // missed yesterday
 });
