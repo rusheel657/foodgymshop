@@ -56,3 +56,39 @@ export function fromOffSearch(json: unknown): FoodDraft[] {
     return food ? [food] : [];
   });
 }
+
+/** One row of a food log. Macros are kept per 100 g so changing grams rescales them. */
+export type LogItem = { foodId: string | null; name: string; grams: number; per100: Macros; verified: boolean };
+
+/** One item returned by the analyze-meal Edge Function. */
+export type AiItem = {
+  mealId: string | null; foodId: string | null; name: string; grams: number;
+  kcal: number | null; protein: number | null; carbs: number | null; fat: number | null;
+};
+type DietFood = Macros & { id: string; name: string };
+type DietMeal = { id: string; items: { foodId: string; grams: number }[] };
+
+/** analyze-meal items → log rows. Saved meals/foods use local macros (verified); the rest use the AI estimate. */
+export function toLogItems(ai: AiItem[], foods: DietFood[], meals: DietMeal[]): LogItem[] {
+  const fromFood = (f: DietFood, grams: number): LogItem => ({
+    foodId: f.id, name: f.name, grams, verified: true,
+    per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
+  });
+  return ai.flatMap((a): LogItem[] => {
+    const meal = meals.find((m) => m.id === a.mealId);
+    if (meal) {
+      return meal.items.flatMap((i) => {
+        const f = foods.find((x) => x.id === i.foodId);
+        return f ? [fromFood(f, i.grams)] : [];
+      });
+    }
+    const food = foods.find((x) => x.id === a.foodId);
+    if (food) return [fromFood(food, a.grams)];
+    if (a.grams <= 0 || a.kcal === null || a.protein === null || a.carbs === null || a.fat === null) return [];
+    const k = 100 / a.grams;
+    return [{
+      foodId: null, name: a.name, grams: a.grams, verified: false,
+      per100: { kcal: a.kcal * k, protein: a.protein * k, carbs: a.carbs * k, fat: a.fat * k },
+    }];
+  });
+}

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { useNav } from '@/lib/nav';
 
-export function Screen({ title, children }: { title: string; children: ReactNode }) {
+export function Screen({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
     <main className="screen">
       <h1>{title}</h1>

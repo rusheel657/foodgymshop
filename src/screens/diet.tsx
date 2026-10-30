@@ -384,7 +384,7 @@ function MealFormScreen({ meal, isNew }: { meal: Meal; isNew?: boolean }) {
   );
 }
 
-function FoodPickerScreen({ foods, onPick }: { foods: Food[]; onPick: (food: Food) => void }) {
+export function FoodPickerScreen({ foods, onPick }: { foods: Food[]; onPick: (food: Food) => void }) {
   return (
     <Page title="Choose food">
       {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}

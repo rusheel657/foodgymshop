@@ -2,6 +2,8 @@ import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 
+import type { AiItem } from '@/lib/nutrition';
+
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 if (!url || !key) throw new Error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY in .env');
@@ -48,4 +50,19 @@ export async function searchUsda(query: string): Promise<UsdaFood[]> {
   const { data, error } = await supabase.functions.invoke<UsdaFood[]>('usda-search', { body: { query } });
   if (error) throw new Error(`Food search failed: ${error.message}`);
   return data ?? [];
+}
+
+/** Photo (base64 JPEG) + My Diet names → matched items, via the analyze-meal Edge Function (Gemini). */
+export async function analyzeMeal(body: {
+  image: string;
+  foods: { id: string; name: string }[];
+  meals: { id: string; name: string; items: { name: string; grams: number }[] }[];
+}): Promise<AiItem[]> {
+  const { data, error } = await supabase.functions.invoke<{ items: AiItem[] }>('analyze-meal', { body });
+  if (error) {
+    // Non-2xx: the function's { error } message is in the response body.
+    const message = await (error.context as Response | undefined)?.json?.().then((j) => j.error).catch(() => null);
+    throw new Error(message ?? `Photo analysis failed: ${error.message}`);
+  }
+  return data?.items ?? [];
 }

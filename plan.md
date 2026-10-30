@@ -141,11 +141,12 @@ Each phase ends with something you can use on the phone.
 **Done when:** your 10–12 foods and regular meals are entered; shopping list works offline.
 
 ### Phase 4 — Food logging
-- [ ] Food tab: targets vs totals (kcal ring + P/C/F bars), today's timeline, date switcher for history.
-- [ ] Quick-add: pick food/meal → grams → log.
-- [ ] Edge Function `analyze-meal` (§4) with daily cap.
-- [ ] Camera button → confirm screen (verified / UNVERIFIED rows, editable) → log.
-- [ ] Edit / delete a logged entry.
+- [x] Food tab: targets vs totals (kcal ring + P/C/F bars), today's timeline, date switcher for history.
+- [x] Quick-add: pick food/meal → grams → log.
+- [x] Edge Function `analyze-meal` (§4). Deployed; needs secret `GEMINI_API_KEY`. *Daily cap deferred (free tier limits itself; add `ai_calls` when friends join). Reference photos not sent (names + portions only).*
+- [x] Camera/gallery button → confirm screen (verified / UNVERIFIED rows, editable) → log.
+- [x] Edit / delete a logged entry.
+- [ ] Tested on phone with a real photo.
 **Done when:** photo of your lamb bowl logs as "Lamb bowl, 500 g lamb + 4 eggs" with your stored macros; an unknown dish logs as unverified.
 
 ### Phase 5 — Gym core

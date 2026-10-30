@@ -117,3 +117,22 @@ input[type='range'] { width: 100%; accent-color: var(--text); }
 .thumb { position: relative; width: 120px; height: 120px; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius); }
 .thumb .icon-button { position: absolute; top: 4px; right: 4px; background: var(--bg); width: 32px; height: 32px; font-size: 18px; }
+
+/* Food log */
+.date-nav { display: flex; align-items: center; gap: 4px; margin-left: -12px; }
+.date-nav .icon-button { font-size: 28px; }
+.date-nav .icon-button:disabled { opacity: 0.25; }
+.kcal { display: flex; align-items: center; gap: 16px; }
+.ring { width: 64px; height: 64px; flex: none; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 8; }
+.ring-track { stroke: var(--border); }
+.ring-fill { stroke: var(--accent); stroke-linecap: round; }
+.ring-fill.over { stroke: var(--danger); }
+.bar { display: flex; flex-direction: column; gap: 4px; }
+.bar progress { appearance: none; width: 100%; height: 6px; border: 0; border-radius: 3px; background: var(--border); overflow: hidden; }
+.bar progress::-webkit-progress-bar { background: var(--border); }
+.bar progress::-webkit-progress-value { background: var(--text); border-radius: 3px; }
+.bar progress::-moz-progress-bar { background: var(--text); }
+.log-item { display: flex; flex-direction: column; gap: 2px; }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; border: 1px solid var(--muted); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+.thumb.wide { width: 100%; height: auto; aspect-ratio: 4 / 3; }

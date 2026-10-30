@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -54,4 +54,28 @@ test('Open Food Facts search hits (trimmed real response for "lamb mince 20% sai
     { name: "20% Fat Lamb Mince (Sainsbury's)", kcal: 269, protein: 17.6, carbs: 0, fat: 20, barcode: '01621372' },
   ]);
   assert.deepEqual(fromOffSearch({}), []);
+});
+
+test('AI items → log rows: meal expands to stored portions, unknown dish is unverified', () => {
+  const foods = [
+    { id: 'lamb', name: 'Lamb', kcal: 269, protein: 21.5, carbs: 0.5, fat: 20 },
+    { id: 'egg', name: 'Eggs', kcal: 143, protein: 14.1, carbs: 0.5, fat: 9.6 },
+  ];
+  const meals = [{ id: 'bowl', items: [{ foodId: 'lamb', grams: 500 }, { foodId: 'egg', grams: 200 }, { foodId: 'gone', grams: 9 }] }];
+  const none = { kcal: null, protein: null, carbs: null, fat: null };
+  const rows = toLogItems(
+    [
+      { mealId: 'bowl', foodId: null, name: 'Lamb bowl', grams: 0, ...none },
+      { mealId: null, foodId: 'egg', name: 'Eggs', grams: 50, ...none },
+      { mealId: null, foodId: null, name: 'Rice', grams: 200, kcal: 260, protein: 5, carbs: 56, fat: 0.6 },
+      { mealId: null, foodId: 'missing', name: 'Ghost', grams: 50, ...none },
+    ],
+    foods,
+    meals,
+  );
+  assert.deepEqual(rows.map((r) => [r.name, r.grams, r.verified]), [
+    ['Lamb', 500, true], ['Eggs', 200, true], ['Eggs', 50, true], ['Rice', 200, false],
+  ]);
+  assert.deepEqual(rows[3].per100, { kcal: 130, protein: 2.5, carbs: 28, fat: 0.3 });
+  assert.equal(formatMacros(sumMacros(rows.slice(0, 2).map((r) => macrosFor(r.per100, r.grams)))), '1631 kcal · P 136 · C 4 · F 119');
 });
