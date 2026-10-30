@@ -141,3 +141,15 @@ export function usualGrams(rows: { foodId: string; grams: number }[]): Map<strin
   }
   return out;
 }
+
+/** Amount as typed/shown: pieces (to the nearest half) for counted foods like eggs, otherwise whole grams. */
+export function showAmount(grams: number, pieceGrams?: number | null) {
+  return String(pieceGrams ? Math.round((grams / pieceGrams) * 2) / 2 : Math.round(grams));
+}
+export const toGrams = (amount: number, pieceGrams?: number | null) => (pieceGrams ? amount * pieceGrams : amount);
+export const unitOf = (pieceGrams?: number | null) => (pieceGrams ? 'pcs' : 'g');
+/** "3 pcs" or "150 g". */
+export function amountLabel(grams: number, pieceGrams?: number | null) {
+  const n = showAmount(grams, pieceGrams);
+  return `${n} ${pieceGrams && n === '1' ? 'pc' : unitOf(pieceGrams)}`;
+}

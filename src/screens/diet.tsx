@@ -7,7 +7,7 @@ import {
 import { useAccount } from '@/lib/account';
 import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
-import { formatMacros, macrosFor, sumMacros, type FoodDraft } from '@/lib/nutrition';
+import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
 import { useLive } from '@/lib/use-live';
@@ -16,7 +16,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -192,11 +192,15 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     fat: isNew && !food.name ? '' : str(food.fat),
     defaultGrams: str(food.defaultGrams),
     shopUnit: food.shopUnit ?? '',
+    pieceGrams: str(food.pieceGrams),
+    dailyMax: food.dailyMaxGrams === null ? '' : showAmount(food.dailyMaxGrams, food.pieceGrams),
   });
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
 
   const macros = { kcal: num(d.kcal), protein: num(d.protein), carbs: num(d.carbs), fat: num(d.fat) };
   const grams = d.defaultGrams.trim() === '' ? null : num(d.defaultGrams);
+  const piece = d.pieceGrams.trim() === '' ? null : num(d.pieceGrams);
+  const limit = d.dailyMax.trim() === '' ? null : toGrams(num(d.dailyMax), piece);
   const error = !d.name.trim()
     ? 'Give it a name.'
     : !(macros.kcal >= 0 && macros.kcal <= 900)
@@ -207,10 +211,17 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           ? 'Protein + carbs + fat can’t exceed 100 g per 100 g.'
           : grams !== null && !(grams > 0 && grams <= 5000)
             ? 'Usual portion must be 1–5000 g.'
-            : null;
+            : piece !== null && !(piece > 0 && piece <= 1000)
+              ? 'One piece must weigh 1–1000 g.'
+              : limit !== null && !(limit > 0 && limit <= 5000)
+                ? 'Daily limit must be more than 0 and at most 5000 g.'
+                : null;
 
   async function save() {
-    await saveFood(userId, { ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null });
+    await saveFood(userId, {
+      ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
+      pieceGrams: piece, dailyMaxGrams: limit,
+    });
     nav.pop(popCount);
   }
 
@@ -237,6 +248,12 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       <Field label="Usual portion" hint="Optional. Used when you add this food to a meal.">
         <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix="g" />
       </Field>
+      <Field label="Counted in pieces" hint="Optional. Weight of one piece, e.g. 50 g for an egg, 24 g for a Medjool date. You then log it as a number of pieces.">
+        <NumberInput label="Grams per piece" value={d.pieceGrams} onChange={(pieceGrams) => set({ pieceGrams })} suffix="g each" />
+      </Field>
+      <Field label="Daily limit" hint="Optional. The most you want in a day; What should I eat? never goes over it.">
+        <NumberInput label="Daily limit" value={d.dailyMax} onChange={(dailyMax) => set({ dailyMax })} suffix={piece ? 'pcs a day' : 'g a day'} placeholder="none" />
+      </Field>
       <Field label="Shopping unit" hint="Optional, e.g. pack, kg, dozen.">
         <TextInput label="Shopping unit" value={d.shopUnit} onChange={(shopUnit) => set({ shopUnit })} />
       </Field>
@@ -251,30 +268,36 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   );
 }
 
-function MealFormScreen({ meal, isNew }: { meal: Meal; isNew?: boolean }) {
+function MealFormScreen(props: { meal: Meal; isNew?: boolean }) {
+  const foods = useLive(listFoods, ['foods']);
+  // Foods first: counted foods (eggs) start out shown in pieces.
+  return foods ? <MealForm {...props} foods={foods} /> : null;
+}
+
+function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: Food[] }) {
   const nav = useNav();
   const { userId } = useAccount();
-  const foods = useLive(listFoods, ['foods']);
+  const pieceOf = (foodId: string) => foods.find((f) => f.id === foodId)?.pieceGrams;
   const [name, setName] = useState(meal.name);
-  const [items, setItems] = useState(meal.items.map((i) => ({ foodId: i.foodId, grams: String(i.grams) })));
+  const [items, setItems] = useState(meal.items.map((i) => ({ foodId: i.foodId, amount: showAmount(i.grams, pieceOf(i.foodId)) })));
   const [photos, setPhotos] = useState(meal.photos);
   const [error, setError] = useState<string | null>(null);
-  if (!foods) return null;
 
-  const live = items.filter((i) => foods.some((f) => f.id === i.foodId));
-  const total = sumMacros(
-    live.map((i) => macrosFor(foods.find((f) => f.id === i.foodId)!, num(i.grams) || 0)),
-  );
+  // `idx` = position in `items` (rows whose food was deleted are hidden, so positions differ).
+  const live = items
+    .map((i, idx) => ({ ...i, idx, g: toGrams(num(i.amount), pieceOf(i.foodId)) }))
+    .filter((i) => foods.some((f) => f.id === i.foodId));
+  const total = sumMacros(live.map((i) => macrosFor(foods.find((f) => f.id === i.foodId)!, i.g || 0)));
   const invalid = !name.trim()
     ? 'Give the meal a name.'
     : live.length === 0
       ? 'Add at least one food.'
-      : live.some((i) => !(num(i.grams) > 0 && num(i.grams) <= 5000))
+      : live.some((i) => !(i.g > 0 && i.g <= 5000))
         ? 'Each amount must be 1–5000 g.'
         : null;
 
   async function save() {
-    await saveMeal(userId, { id: meal.id, name: name.trim(), photos, items: live.map((i) => ({ foodId: i.foodId, grams: num(i.grams) })) });
+    await saveMeal(userId, { id: meal.id, name: name.trim(), photos, items: live.map((i) => ({ foodId: i.foodId, grams: i.g })) });
     // shortcut: photos added and then abandoned (back without saving) stay on disk; clean up in Phase 6 export/cleanup.
     await Promise.all(meal.photos.filter((p) => !photos.includes(p)).map(deletePhoto));
     nav.pop();
@@ -312,7 +335,7 @@ function MealFormScreen({ meal, isNew }: { meal: Meal; isNew?: boolean }) {
               <FoodPickerScreen
                 foods={foods}
                 onPick={(f) => {
-                  setItems((list) => [...list, { foodId: f.id, grams: String(f.defaultGrams ?? 100) }]);
+                  setItems((list) => [...list, { foodId: f.id, amount: showAmount(f.defaultGrams ?? f.pieceGrams ?? 100, f.pieceGrams) }]);
                   nav.pop();
                 }}
               />,
@@ -326,16 +349,16 @@ function MealFormScreen({ meal, isNew }: { meal: Meal; isNew?: boolean }) {
             <div key={i} className="meal-item">
               <span className="meal-item-name">{food.name}</span>
               <NumberInput
-                label={`${food.name} grams`}
-                value={item.grams}
-                onChange={(grams) => setItems((list) => list.map((x) => (x === item ? { ...x, grams } : x)))}
-                suffix="g"
+                label={`${food.name} amount`}
+                value={item.amount}
+                onChange={(amount) => setItems((list) => list.map((x, j) => (j === item.idx ? { ...x, amount } : x)))}
+                suffix={unitOf(food.pieceGrams)}
               />
               <button
                 type="button"
                 className="icon-button"
                 aria-label={`Remove ${food.name}`}
-                onClick={() => setItems((list) => list.filter((x) => x !== item))}>
+                onClick={() => setItems((list) => list.filter((_, j) => j !== item.idx))}>
                 ×
               </button>
             </div>

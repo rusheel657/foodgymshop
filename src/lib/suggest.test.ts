@@ -64,7 +64,8 @@ test('options: several different food combinations, closest first, using a varie
   const foods = [chicken, bread, honey, lamb, eggs, juice];
   const remaining = { kcal: 1200, protein: 90, carbs: 110, fat: 35 };
   const opts = suggestOptions(remaining, foods, butter);
-  assert.ok(opts.length >= 3 && opts.length <= 4, JSON.stringify(opts));
+  assert.equal(suggestOptions(remaining, foods, butter, 3).length, 3);
+  assert.ok(opts.length >= 6 && opts.length <= 10, `${opts.length} options`);
   assert.ok(opts.some((o) => JSON.stringify(o) === JSON.stringify(suggest(remaining, foods, butter))));
   const keys = opts.map((o) => o.map((x) => x.foodId).sort().join());
   assert.equal(new Set(keys).size, keys.length); // all different
@@ -73,4 +74,15 @@ test('options: several different food combinations, closest first, using a varie
   const main = new Set(opts.flat().map((x) => x.foodId));
   assert.ok(main.size >= 5, `options should use a variety of foods: ${[...main]}`);
   assert.deepEqual(suggestOptions({ kcal: 0, protein: 0, carbs: 0, fat: 0 }, foods, butter), []);
+});
+
+test('daily limits and counted foods: limit minus what was eaten caps a food; eggs come in whole pieces', () => {
+  assert.equal(maxGramsFor(106, undefined, null, 400 - 250), 150); // 400 g/day chicken limit, 250 g already eaten
+  assert.equal(maxGramsFor(106, undefined, null, -20), 0); // already over the limit
+  const eggs = { ...f('eggs', 'Free Range Eggs', 143, 14.1, 0.5, 9.6), pieceGrams: 50 };
+  const s = suggest({ kcal: 400, protein: 30, carbs: 0, fat: 20 }, [eggs], null);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].grams % 50, 0);
+  const capped = suggest({ kcal: 2000, protein: 120, carbs: 0, fat: 5 }, [{ ...chicken, maxGrams: 150 }], null);
+  assert.ok(capped[0].grams <= 150, JSON.stringify(capped));
 });

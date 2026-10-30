@@ -141,4 +141,10 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE foods ADD COLUMN at_home INTEGER NOT NULL DEFAULT 0;`,
   // 4: how much of an at-home food is left, in grams (null = not limited).
   `ALTER TABLE foods ADD COLUMN home_grams REAL;`,
+  // 5: counted foods (grams per piece, e.g. an egg ≈ 50 g) and a per-day cap the suggestions respect (grams).
+  `
+  ALTER TABLE foods ADD COLUMN piece_grams REAL;
+  ALTER TABLE foods ADD COLUMN daily_max_grams REAL;
+  UPDATE foods SET piece_grams = 50 WHERE name LIKE '%egg%';
+  `,
 ];

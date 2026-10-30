@@ -2,7 +2,8 @@
 // Pure maths, no imports, so node:test can run it directly.
 
 type Macros = { kcal: number; protein: number; carbs: number; fat: number };
-export type SuggestFood = Macros & { id: string; name: string; maxGrams: number };
+/** `pieceGrams`: counted foods (eggs) are suggested in whole pieces. */
+export type SuggestFood = Macros & { id: string; name: string; maxGrams: number; pieceGrams?: number | null };
 export type Suggestion = { foodId: string; name: string; grams: number };
 
 /** Chicken and eggs are always cooked in butter: grams of butter per gram of chicken/egg. */
@@ -62,8 +63,10 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
   const out: Suggestion[] = [];
   let butterGrams = 0;
   chosen.forEach((i, n) => {
-    const grams = Math.round(best.x[n] / 5) * 5;
-    if (grams < 5) return;
+    const step = foods[i].pieceGrams || 5;
+    let grams = Math.round(best.x[n] / step) * step;
+    if (grams > foods[i].maxGrams) grams -= step; // rounding must not break a limit
+    if (grams <= 0) return;
     out.push({ foodId: foods[i].id, name: foods[i].name, grams });
     if (butter && cookedInButter(foods[i].name)) butterGrams += grams * BUTTER_PER_GRAM;
   });
@@ -76,10 +79,11 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
 }
 
 /** Cap on how much of one food a suggestion may use: twice your usual portion, else 300 g (50 g for dense foods like
- *  honey, chocolate, butter), and never more than you have at home (`homeGrams`, null = not limited). */
-export function maxGramsFor(kcalPer100: number, usual?: number, homeGrams: number | null = null) {
+ *  honey, chocolate, butter); never more than you have at home (`homeGrams`) or than is left of your daily limit
+ *  (`limitLeft`, already minus what you ate today). null = not limited. */
+export function maxGramsFor(kcalPer100: number, usual?: number, homeGrams: number | null = null, limitLeft: number | null = null) {
   const cap = usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300;
-  return homeGrams === null ? cap : Math.min(cap, homeGrams);
+  return Math.max(0, Math.min(cap, homeGrams ?? Infinity, limitLeft ?? Infinity));
 }
 
 /** How far a plan's totals are from the target (same weighting as the solver; lower is better). */
@@ -99,13 +103,13 @@ export function suggestOptions(
   remaining: Macros,
   foods: SuggestFood[],
   butter: (Macros & { id: string; name: string }) | null,
-  count = 4,
+  count = 10,
 ): Suggestion[][] {
   const all = butter ? [...foods, butter] : foods;
   const seen = new Set<string>();
   const options: { plan: Suggestion[]; err: number }[] = [];
   const queue: string[][] = [[]]; // food ids to leave out
-  for (let tries = 0; queue.length && tries < 16; tries++) {
+  for (let tries = 0; queue.length && tries < count * 5; tries++) {
     const without = queue.shift()!;
     const plan = suggest(remaining, foods.filter((f) => !without.includes(f.id)), butter);
     const key = plan.map((p) => p.foodId).sort().join();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams, amountLabel, showAmount, toGrams } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -108,4 +108,13 @@ test('usual grams = median per food, needs 2+ logs, rounded to 5 g', () => {
     { foodId: 'egg', grams: 100 }, { foodId: 'egg', grams: 123 }, { foodId: 'once', grams: 50 },
   ]);
   assert.deepEqual([...m], [['lamb', 260], ['egg', 110]]);
+});
+
+test('counted foods show in pieces (nearest half), others in grams', () => {
+  assert.equal(amountLabel(150, 50), '3 pcs');
+  assert.equal(amountLabel(50, 50), '1 pc');
+  assert.equal(showAmount(130, 50), '2.5');
+  assert.equal(amountLabel(152.4, null), '152 g');
+  assert.equal(toGrams(3, 50), 150);
+  assert.equal(toGrams(120, null), 120);
 });

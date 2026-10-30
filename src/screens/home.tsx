@@ -2,9 +2,10 @@ import { useState } from 'react';
 
 import { Button, EmptyState, NumberInput, num, Page } from '@/components/ui';
 import { listFoods, setAtHome, setHomeGrams, type Food } from '@/db/diet';
-import { usualPortions } from '@/db/log';
+import { listLogs, usualPortions } from '@/db/log';
+import { ymd } from '@/lib/history';
 import { useNav } from '@/lib/nav';
-import { formatMacros, macrosFor, sumMacros, type LogItem, type Macros } from '@/lib/nutrition';
+import { amountLabel, formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
 import { maxGramsFor, suggestOptions } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { LogFormScreen, newLog } from '@/screens/log';
@@ -29,9 +30,10 @@ export function AtHomeScreen() {
 }
 
 function HomeRow({ food: f }: { food: Food }) {
-  const [grams, setGrams] = useState(f.homeGrams === null ? '' : String(f.homeGrams));
-  const v = num(grams);
-  const invalid = grams.trim() !== '' && !(v >= 0 && v <= 20000);
+  // Counted foods (eggs) are entered as pieces; stored as grams.
+  const [amount, setAmount] = useState(f.homeGrams === null ? '' : showAmount(f.homeGrams, f.pieceGrams));
+  const v = toGrams(num(amount), f.pieceGrams);
+  const invalid = amount.trim() !== '' && !(v >= 0 && v <= 20000);
   return (
     <div className="list-row home-row">
       <label className="check-row">
@@ -43,13 +45,13 @@ function HomeRow({ food: f }: { food: Food }) {
       </label>
       {f.atHome && (
         <NumberInput
-          label={`Grams of ${f.name} at home`}
-          value={grams}
+          label={`Amount of ${f.name} at home`}
+          value={amount}
           placeholder="any"
-          suffix="g"
+          suffix={unitOf(f.pieceGrams)}
           onChange={(t) => {
-            setGrams(t);
-            const n = num(t);
+            setAmount(t);
+            const n = toGrams(num(t), f.pieceGrams);
             if (t.trim() === '') void setHomeGrams(f.id, null);
             else if (n >= 0 && n <= 20000) void setHomeGrams(f.id, n);
           }}
@@ -62,15 +64,26 @@ function HomeRow({ food: f }: { food: Food }) {
 /** Exact grams of at-home foods that fill the rest of the day's macros. */
 export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; loggedAt: string }) {
   const nav = useNav();
-  const data = useLive(async () => ({ foods: await listFoods(), usual: await usualPortions() }), ['foods', 'food_log_items']);
+  const day = ymd(new Date(loggedAt));
+  const data = useLive(
+    async () => ({ foods: await listFoods(), usual: await usualPortions(), logs: await listLogs(day) }),
+    ['foods', 'food_logs', 'food_log_items'],
+    [day],
+  );
   if (!data) return null;
-  const { foods, usual } = data;
+  const { foods, usual, logs } = data;
+  // Grams of each food already eaten that day, so daily limits count it.
+  const eaten = new Map<string, number>();
+  for (const i of logs.flatMap((l) => l.items)) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
   const home = foods.filter((f) => f.atHome && !isButter(f));
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   const options = suggestOptions(
     remaining,
-    home.map((f) => ({ ...f, maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams) })),
+    home.map((f) => ({
+      ...f,
+      maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0)),
+    })),
     butter,
   ).map((plan) =>
     plan.map((p): LogItem => {
@@ -102,7 +115,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
             </div>
             {items.map((i) => (
               <div key={i.foodId} className="option-item">
-                <strong>{i.grams} g</strong>
+                <strong>{amountLabel(i.grams, foods.find((f) => f.id === i.foodId)?.pieceGrams)}</strong>
                 <span>
                   {i.name}
                   <span className="small muted">

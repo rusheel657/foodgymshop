@@ -6,7 +6,7 @@ import { deleteLog, recentCorrections, saveCorrections, saveLog, usualPortions, 
 import { useAccount } from '@/lib/account';
 import { useNav } from '@/lib/nav';
 import {
-  correctionNote, diffCorrections, formatMacros, macrosFor, sumMacros, toLogItems, type LogItem,
+  correctionNote, diffCorrections, formatMacros, macrosFor, showAmount, sumMacros, toGrams, toLogItems, unitOf, type LogItem,
 } from '@/lib/nutrition';
 import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
@@ -101,22 +101,27 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
 
 /** Confirm a new entry (from a photo or quick-add) or edit a logged one. */
 /** `aiItems`: the photo analysis as returned, so corrections can be remembered (see diffCorrections). */
-export function LogFormScreen({ log, isNew, notice, aiItems }: {
-  log: FoodLog; isNew?: boolean; notice?: string; aiItems?: LogItem[];
+export function LogFormScreen(props: { log: FoodLog; isNew?: boolean; notice?: string; aiItems?: LogItem[] }) {
+  const foods = useLive(listFoods, ['foods']);
+  const meals = useLive(listMeals, ['meals', 'meal_items']);
+  // Foods first: counted foods (eggs) start out shown in pieces.
+  return foods && meals ? <LogForm {...props} foods={foods} meals={meals} /> : null;
+}
+
+function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
+  log: FoodLog; isNew?: boolean; notice?: string; aiItems?: LogItem[]; foods: Food[]; meals: Meal[];
 }) {
   const nav = useNav();
   const { userId } = useAccount();
-  const foods = useLive(listFoods, ['foods']);
-  const meals = useLive(listMeals, ['meals', 'meal_items']);
-  const [items, setItems] = useState(log.items.map((item) => ({ item, grams: String(Math.round(item.grams)) })));
+  const pieceOf = (item: LogItem) => foods.find((f) => f.id === item.foodId)?.pieceGrams;
+  const [items, setItems] = useState(log.items.map((item) => ({ item, amount: showAmount(item.grams, pieceOf(item)) })));
   const [mealId, setMealId] = useState(log.mealId);
-  if (!foods || !meals) return null;
 
-  const rows = items.map((r) => ({ ...r, g: num(r.grams) }));
+  const rows = items.map((r) => ({ ...r, piece: pieceOf(r.item), g: toGrams(num(r.amount), pieceOf(r.item)) }));
   const total = sumMacros(rows.map((r) => macrosFor(r.item.per100, r.g || 0)));
   const invalid =
     rows.length === 0 ? 'Add at least one item.' : rows.some((r) => !(r.g > 0 && r.g <= 5000)) ? 'Each amount must be 1–5000 g.' : null;
-  const add = (more: LogItem[]) => setItems((list) => [...list, ...more.map((item) => ({ item, grams: String(item.grams) }))]);
+  const add = (more: LogItem[]) => setItems((list) => [...list, ...more.map((item) => ({ item, amount: showAmount(item.grams, pieceOf(item)) }))]);
 
   async function save() {
     await saveLog(userId, { ...log, mealId, items: rows.map((r) => ({ ...r.item, grams: r.g })) });
@@ -145,7 +150,7 @@ export function LogFormScreen({ log, isNew, notice, aiItems }: {
           title="Items"
           action="+ Food"
           onAction={() =>
-            nav.push(<FoodPickerScreen foods={foods} onPick={(f) => { add([fromFood(f, f.defaultGrams ?? 100)]); nav.pop(); }} />)
+            nav.push(<FoodPickerScreen foods={foods} onPick={(f) => { add([fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100)]); nav.pop(); }} />)
           }
         />
         {rows.length === 0 && <EmptyState text="No items yet." />}
@@ -154,10 +159,10 @@ export function LogFormScreen({ log, isNew, notice, aiItems }: {
             <div className="meal-item">
               <span className="meal-item-name">{r.item.name}</span>
               <NumberInput
-                label={`${r.item.name} grams`}
-                value={r.grams}
-                onChange={(grams) => setItems((list) => list.map((x, j) => (j === i ? { ...x, grams } : x)))}
-                suffix="g"
+                label={`${r.item.name} amount`}
+                value={r.amount}
+                onChange={(amount) => setItems((list) => list.map((x, j) => (j === i ? { ...x, amount } : x)))}
+                suffix={unitOf(r.piece)}
               />
               <button
                 type="button"
