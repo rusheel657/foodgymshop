@@ -1,0 +1,172 @@
+/* Colour themes, chosen in Profile → Themes (data-skin on <html>, see lib/theme.ts).
+   Simple themes swap the main colour; special themes restyle everything and get an animated layer (components/effects.tsx). */
+
+/* ---- Simple ---- */
+:root[data-skin='red'] { --brand: #ff4d5e; --on-brand: #fff; }
+:root[data-skin='blue'] { --brand: #3b82f6; --on-brand: #fff; }
+:root[data-skin='pink'] { --brand: #ff5fa2; --on-brand: #fff; }
+:root[data-skin='green'] { --brand: #22c55e; --on-brand: #04140a; }
+:root[data-skin='orange'] { --brand: #ff8a1f; --on-brand: #1a0d00; }
+:root[data-skin='yellow'] { --brand: #ffc928; --on-brand: #1a1400; }
+:root:is([data-skin='red'], [data-skin='blue'], [data-skin='pink'], [data-skin='green'], [data-skin='orange'], [data-skin='yellow']) body {
+  background: color-mix(in srgb, var(--brand) 7%, var(--bg));
+}
+:root:is([data-skin='red'], [data-skin='blue'], [data-skin='pink'], [data-skin='green'], [data-skin='orange'], [data-skin='yellow']) .week-day[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--brand), var(--shadow);
+}
+
+/* ---- Shared by special themes ---- */
+:root:is([data-skin='gold'], [data-skin='lightning'], [data-skin='fire'], [data-skin='ice']) body { background-attachment: fixed; }
+.fx { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+.fx.over { z-index: 4; }
+.fx-flash { position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; background: radial-gradient(120% 80% at var(--fx-x, 50%) 0%, rgb(220 245 255 / 0.55), rgb(162 107 255 / 0.12) 60%, transparent); }
+.fx-flash.on { animation: fx-flash 520ms ease-out; }
+@keyframes fx-flash { 0% { opacity: 0; } 8% { opacity: 1; } 18% { opacity: 0.25; } 26% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* ---- Gold: black and gold, serif display type, shimmering numbers ---- */
+:root[data-skin='gold'] {
+  color-scheme: dark;
+  --text: #f8ecd0;
+  --bg: #0a0805;
+  --element: rgb(30 23 12 / 0.84);
+  --muted: #b9a57a;
+  --border: rgb(214 175 82 / 0.28);
+  --accent: #a9d46a;
+  --danger: #ff7a59;
+  --brand: #e9c25a;
+  --on-brand: #1a1206;
+  --gold: linear-gradient(110deg, #a8781f 0%, #f7dc8a 28%, #fff4c9 42%, #e7b94c 58%, #a8781f 78%, #f7dc8a 100%);
+  --shadow: 0 0 0 1px rgb(214 175 82 / 0.22), 0 12px 32px rgb(0 0 0 / 0.55);
+}
+:root[data-skin='gold'] body { background: radial-gradient(120% 55% at 50% -12%, #3d2c0d 0%, transparent 62%), radial-gradient(90% 40% at 50% 110%, #2a1d07 0%, transparent 70%), #0a0805; }
+:root[data-skin='gold'] :is(h1, h2, .big-num) { font-family: Georgia, 'Noto Serif', 'Times New Roman', serif; letter-spacing: 0; }
+:root[data-skin='gold'] :is(h1, .big-num, .section-title) {
+  background: var(--gold) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-shimmer 7s linear infinite;
+}
+:root[data-skin='gold'] .big-num .muted { -webkit-text-fill-color: var(--muted); }
+:root[data-skin='gold'] :is(.fab, .button.primary, .segmented button[aria-pressed='true']) { background: var(--gold) 0 0 / 250% 100%; color: #1a1206; animation: gold-shimmer 7s linear infinite; }
+:root[data-skin='gold'] .fab { box-shadow: 0 0 0 1px rgb(255 230 160 / 0.5), 0 8px 30px rgb(233 194 90 / 0.35); }
+:root[data-skin='gold'] .tabbar { background: rgb(18 14 8 / 0.82); border-color: rgb(214 175 82 / 0.35); }
+:root[data-skin='gold'] .ring-wrap > svg { filter: drop-shadow(0 0 5px rgb(233 194 90 / 0.45)); }
+:root[data-skin='gold'] .streak .flame { color: #f7d774; }
+@keyframes gold-shimmer { to { background-position: -250% 0; } }
+
+/* ---- Lightning: deep indigo, neon glow, italic display type, strikes ---- */
+:root[data-skin='lightning'] {
+  color-scheme: dark;
+  --text: #eaf6ff;
+  --bg: #04050d;
+  --element: rgb(13 16 40 / 0.8);
+  --muted: #8b93c7;
+  --border: rgb(94 231 255 / 0.22);
+  --accent: #4ef2a5;
+  --danger: #ff4f8b;
+  --brand: #5ee7ff;
+  --on-brand: #03101a;
+  --volt: linear-gradient(120deg, #5ee7ff 0%, #7aa8ff 50%, #a26bff 100%);
+  --shadow: 0 0 0 1px rgb(94 231 255 / 0.2), 0 0 26px rgb(94 231 255 / 0.08);
+}
+:root[data-skin='lightning'] body { background: radial-gradient(90% 50% at 85% -5%, rgb(162 107 255 / 0.28), transparent 60%), radial-gradient(80% 45% at 0% 105%, rgb(94 231 255 / 0.16), transparent 60%), #04050d; }
+:root[data-skin='lightning'] :is(h1, h2) { font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0.01em; color: #fff; text-shadow: 0 0 10px rgb(94 231 255 / 0.7), 0 0 28px rgb(162 107 255 / 0.45); }
+:root[data-skin='lightning'] h1 { animation: volt-flicker 6s infinite; }
+:root[data-skin='lightning'] .big-num { color: #fff; text-shadow: 0 0 14px rgb(94 231 255 / 0.8), 0 0 40px rgb(94 231 255 / 0.35); }
+:root[data-skin='lightning'] .big-num .muted { text-shadow: none; }
+:root[data-skin='lightning'] :is(.fab, .button.primary, .segmented button[aria-pressed='true']) { background: var(--volt); color: #03101a; }
+:root[data-skin='lightning'] .button { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+:root[data-skin='lightning'] .fab { animation: volt-pulse 2.4s ease-in-out infinite; }
+:root[data-skin='lightning'] .ring-wrap > svg { filter: drop-shadow(0 0 6px rgb(94 231 255 / 0.8)); }
+:root[data-skin='lightning'] .tabbar { background: rgb(8 10 28 / 0.8); border-color: rgb(94 231 255 / 0.3); box-shadow: 0 0 30px rgb(94 231 255 / 0.15); }
+:root[data-skin='lightning'] .tabbar button[aria-current='true'] { text-shadow: 0 0 10px rgb(94 231 255 / 0.9); }
+@keyframes volt-flicker { 0%, 91%, 100% { opacity: 1; } 92% { opacity: 0.35; } 93% { opacity: 1; } 95% { opacity: 0.5; } 96% { opacity: 1; } }
+@keyframes volt-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(94 231 255 / 0.55), 0 0 22px rgb(94 231 255 / 0.5); } 50% { box-shadow: 0 0 0 10px rgb(94 231 255 / 0), 0 0 36px rgb(162 107 255 / 0.7); } }
+
+/* ---- Fire: ember black, flame-gradient type, molten glow from below ---- */
+:root[data-skin='fire'] {
+  color-scheme: dark;
+  --text: #fff1e6;
+  --bg: #0b0302;
+  --element: rgb(32 11 6 / 0.8);
+  --muted: #c98d72;
+  --border: rgb(255 98 0 / 0.26);
+  --accent: #9be15d;
+  --danger: #ff3b30;
+  --brand: #ff6a00;
+  --on-brand: #1a0500;
+  --flame: linear-gradient(0deg, #c4001a 0%, #ff4d00 40%, #ffb000 75%, #fff3b0 100%);
+  --shadow: 0 0 0 1px rgb(255 98 0 / 0.18), 0 12px 32px rgb(0 0 0 / 0.55), inset 0 -18px 30px -24px rgb(255 77 0 / 0.35);
+}
+:root[data-skin='fire'] body { background: radial-gradient(130% 50% at 50% 115%, rgb(255 77 0 / 0.35), transparent 65%), #0b0302; }
+:root[data-skin='fire'] body::before {
+  content: '';
+  position: fixed;
+  inset: auto -20% 0;
+  height: 45vh;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(60% 70% at 50% 100%, rgb(255 140 0 / 0.5), rgb(212 0 28 / 0.22) 45%, transparent 75%);
+  animation: fire-breathe 3.2s ease-in-out infinite alternate;
+  transform-origin: 50% 100%;
+}
+:root[data-skin='fire'] :is(h1, h2, .big-num) { font-weight: 900; letter-spacing: -0.02em; }
+:root[data-skin='fire'] :is(h1, .big-num, .section-title) {
+  background: var(--flame) 0 0 / 100% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgb(255 90 0 / 0.45));
+  animation: fire-text 2.6s ease-in-out infinite alternate;
+}
+:root[data-skin='fire'] .big-num .muted { -webkit-text-fill-color: var(--muted); }
+:root[data-skin='fire'] :is(.fab, .button.primary, .segmented button[aria-pressed='true']) { background: linear-gradient(160deg, #ffb000, #ff4d00 55%, #c4001a); color: #fff; }
+:root[data-skin='fire'] .fab { animation: fire-glow 1.6s ease-in-out infinite alternate; }
+:root[data-skin='fire'] .ring-wrap > svg { filter: drop-shadow(0 0 6px rgb(255 106 0 / 0.7)); }
+:root[data-skin='fire'] .tabbar { background: rgb(24 8 4 / 0.82); border-color: rgb(255 98 0 / 0.3); }
+@keyframes fire-breathe { from { opacity: 0.7; transform: scaleY(0.92); } to { opacity: 1; transform: scaleY(1.06); } }
+@keyframes fire-text { from { background-position: 0 100%; } to { background-position: 0 40%; } }
+@keyframes fire-glow { from { box-shadow: 0 6px 22px rgb(255 77 0 / 0.45), 0 0 0 0 rgb(255 176 0 / 0.3); } to { box-shadow: 0 6px 34px rgb(255 120 0 / 0.75), 0 0 0 6px rgb(255 176 0 / 0); } }
+
+/* ---- Ice: light frosted glass, airy type, falling snow ---- */
+:root[data-skin='ice'] {
+  color-scheme: light;
+  --text: #0b2540;
+  --bg: #e9f4fd;
+  --element: rgb(255 255 255 / 0.5);
+  --muted: #5b7a98;
+  --border: rgb(255 255 255 / 0.75);
+  --accent: #16a34a;
+  --danger: #e11d48;
+  --brand: #38bdf8;
+  --on-brand: #fff;
+  --frost: linear-gradient(135deg, #38bdf8 0%, #60a5fa 50%, #818cf8 100%);
+  --shadow: 0 10px 34px rgb(56 120 180 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --radius: 22px;
+}
+:root[data-skin='ice'] body { background: radial-gradient(80% 40% at 100% 0%, rgb(129 140 248 / 0.25), transparent 60%), linear-gradient(180deg, #f6fbff 0%, #deedfb 55%, #c6dff6 100%); }
+:root[data-skin='ice'] :is(.card, .list, .cal-card, .macro-card, .entry, .streak, .week-day[aria-pressed='true'], .tabbar, .sheet, .option, .rest-bar) {
+  background: rgb(255 255 255 / 0.5);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+:root[data-skin='ice'] :is(.cal-card, .macro-card, .entry) { border-radius: 26px; }
+:root[data-skin='ice'] :is(h1, h2, .big-num) { font-weight: 300; letter-spacing: -0.02em; }
+:root[data-skin='ice'] .big-num {
+  background: var(--frost);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 200;
+}
+:root[data-skin='ice'] .big-num .muted { -webkit-text-fill-color: var(--muted); }
+:root[data-skin='ice'] :is(.fab, .button.primary, .segmented button[aria-pressed='true']) { background: var(--frost); color: #fff; }
+:root[data-skin='ice'] .fab { box-shadow: 0 10px 30px rgb(56 189 248 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.6); }
+:root[data-skin='ice'] .ring-track { stroke: rgb(255 255 255 / 0.7); }
+:root[data-skin='ice'] .input, :root[data-skin='ice'] .card .input { background: rgb(255 255 255 / 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx, .fx-flash, :root[data-skin='fire'] body::before { display: none; }
+}

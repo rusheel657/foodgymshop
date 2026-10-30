@@ -1,6 +1,7 @@
 import { Browser } from '@capacitor/browser';
 import { useEffect, useState } from 'react';
 
+import { SkinEffects } from '@/components/effects';
 import { ProfileForm } from '@/components/profile-form';
 import { Screen } from '@/components/ui';
 import { saveProfile } from '@/db/profile';
@@ -33,6 +34,7 @@ export function App() {
   if (session === undefined || (session && profile === undefined)) return null;
   return (
     <>
+      <SkinEffects />
       {apkUrl && (
         <button type="button" className="update-bar" onClick={() => Browser.open({ url: apkUrl })}>
           New version available — tap to download
