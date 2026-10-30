@@ -5,7 +5,7 @@ import { listFoods, setAtHome, setHomeGrams, type Food } from '@/db/diet';
 import { usualPortions } from '@/db/log';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, sumMacros, type LogItem, type Macros } from '@/lib/nutrition';
-import { maxGramsFor, suggest } from '@/lib/suggest';
+import { maxGramsFor, suggestOptions } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { LogFormScreen, newLog } from '@/screens/log';
 
@@ -68,16 +68,16 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
   const home = foods.filter((f) => f.atHome && !isButter(f));
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
-  const plan = suggest(
+  const options = suggestOptions(
     remaining,
     home.map((f) => ({ ...f, maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams) })),
     butter,
+  ).map((plan) =>
+    plan.map((p): LogItem => {
+      const f = foods.find((x) => x.id === p.foodId)!;
+      return { foodId: f.id, name: f.name, grams: p.grams, verified: true, per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } };
+    }),
   );
-  const items: LogItem[] = plan.map((p) => {
-    const f = foods.find((x) => x.id === p.foodId)!;
-    return { foodId: f.id, name: f.name, grams: p.grams, verified: true, per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } };
-  });
-  const total = sumMacros(items.map((i) => macrosFor(i.per100, i.grams)));
   const left = (n: number) => Math.max(0, Math.round(n));
 
   return (
@@ -91,17 +91,20 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
 
       {home.length === 0 ? (
         <EmptyState text="Tick the foods you have at home first." />
-      ) : items.length === 0 ? (
+      ) : options.length === 0 ? (
         <EmptyState text="You've hit your targets for today." />
       ) : (
-        <>
-          <div className="list">
+        options.map((items, n) => (
+          <section key={items.map((i) => i.foodId).join()} className="option">
+            <div className="option-head">
+              <h2>Option {n + 1}</h2>
+              {n === 0 && <span className="chip">Closest match</span>}
+            </div>
             {items.map((i) => (
-              <div key={i.foodId} className="list-row">
+              <div key={i.foodId} className="option-item">
+                <strong>{i.grams} g</strong>
                 <span>
-                  <span className="list-title">
-                    <strong>{i.grams} g</strong> {i.name}
-                  </span>
+                  {i.name}
                   <span className="small muted">
                     {formatMacros(macrosFor(i.per100, i.grams))}
                     {butter && i.foodId === butter.id ? ' · for cooking' : ''}
@@ -109,18 +112,14 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
                 </span>
               </div>
             ))}
-          </div>
-          <div className="card">
-            <span className="label">This adds</span>
-            <p>{formatMacros(total)}</p>
-          </div>
-          <Button
-            title="Log this"
-            onClick={() => {
-              nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
-            }}
-          />
-        </>
+            <p className="option-total small">Adds {formatMacros(sumMacros(items.map((i) => macrosFor(i.per100, i.grams))))}</p>
+            <Button
+              title="Log this"
+              variant={n === 0 ? 'primary' : 'secondary'}
+              onClick={() => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />)}
+            />
+          </section>
+        ))
       )}
       <Button title="Edit what's at home" variant="secondary" onClick={() => nav.push(<AtHomeScreen />)} />
     </Page>

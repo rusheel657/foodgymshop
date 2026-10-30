@@ -81,3 +81,49 @@ export function maxGramsFor(kcalPer100: number, usual?: number, homeGrams: numbe
   const cap = usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300;
   return homeGrams === null ? cap : Math.min(cap, homeGrams);
 }
+
+/** How far a plan's totals are from the target (same weighting as the solver; lower is better). */
+export function planError(remaining: Macros, plan: Suggestion[], foods: (Macros & { id: string })[]) {
+  const total = [0, 0, 0];
+  for (const p of plan) {
+    const f = foods.find((x) => x.id === p.foodId);
+    if (f) vec(f).forEach((v, k) => (total[k] += v * p.grams));
+  }
+  const target = [remaining.protein, remaining.carbs, remaining.fat].map((g) => Math.max(0, g));
+  return [0, 1, 2].reduce((e, k) => e + W[k] * (total[k] - target[k]) ** 2, 0);
+}
+
+/** Up to `count` different combinations: the closest plan first, then re-plans that leave out foods already used,
+ *  picked for being close *and* sharing few foods with the options before them (so they're real alternatives). */
+export function suggestOptions(
+  remaining: Macros,
+  foods: SuggestFood[],
+  butter: (Macros & { id: string; name: string }) | null,
+  count = 4,
+): Suggestion[][] {
+  const all = butter ? [...foods, butter] : foods;
+  const seen = new Set<string>();
+  const options: { plan: Suggestion[]; err: number }[] = [];
+  const queue: string[][] = [[]]; // food ids to leave out
+  for (let tries = 0; queue.length && tries < 16; tries++) {
+    const without = queue.shift()!;
+    const plan = suggest(remaining, foods.filter((f) => !without.includes(f.id)), butter);
+    const key = plan.map((p) => p.foodId).sort().join();
+    if (!plan.length || seen.has(key)) continue;
+    seen.add(key);
+    options.push({ plan, err: planError(remaining, plan, all) });
+    for (const p of plan) if (p.foodId !== butter?.id) queue.push([...without, p.foodId]);
+  }
+  const foodsOf = (plan: Suggestion[]) => new Set(plan.filter((p) => p.foodId !== butter?.id).map((p) => p.foodId));
+  const overlap = (a: Set<string>, b: Set<string>) => [...a].filter((x) => b.has(x)).length / new Set([...a, ...b]).size;
+  const picked: typeof options = [];
+  const rest = options.sort((a, b) => a.err - b.err);
+  while (picked.length < count && rest.length) {
+    // +50 so near-perfect plans still compare on variety; ×(1 + 3·overlap) penalises repeating the same foods.
+    const score = (o: (typeof options)[number]) =>
+      (o.err + 50) * (1 + 3 * Math.max(0, ...picked.map((p) => overlap(foodsOf(o.plan), foodsOf(p.plan)))));
+    rest.sort((a, b) => score(a) - score(b));
+    picked.push(rest.shift()!);
+  }
+  return picked.map((o) => o.plan);
+}

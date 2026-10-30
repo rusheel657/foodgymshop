@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { maxGramsFor, suggest, type Suggestion } from './suggest.ts';
+import { maxGramsFor, planError, suggest, suggestOptions, type Suggestion } from './suggest.ts';
 
 const f = (id: string, name: string, kcal: number, protein: number, carbs: number, fat: number, maxGrams = 300) =>
   ({ id, name, kcal, protein, carbs, fat, maxGrams });
@@ -56,4 +56,21 @@ test('caps: twice the usual portion, else 300 g, 50 g for dense foods, never mor
   assert.equal(maxGramsFor(106, undefined, 180), 180); // only 180 g chicken left at home
   assert.equal(maxGramsFor(106, 200, 1000), 400);
   assert.equal(maxGramsFor(106, undefined, 0), 0);
+});
+
+test('options: several different food combinations, closest first, using a variety of foods', () => {
+  const eggs = f('eggs', 'Free Range Eggs', 143, 14.1, 0.5, 9.6);
+  const juice = f('juice', 'Orange Juice', 41, 0.8, 9.3, 0);
+  const foods = [chicken, bread, honey, lamb, eggs, juice];
+  const remaining = { kcal: 1200, protein: 90, carbs: 110, fat: 35 };
+  const opts = suggestOptions(remaining, foods, butter);
+  assert.ok(opts.length >= 3 && opts.length <= 4, JSON.stringify(opts));
+  assert.ok(opts.some((o) => JSON.stringify(o) === JSON.stringify(suggest(remaining, foods, butter))));
+  const keys = opts.map((o) => o.map((x) => x.foodId).sort().join());
+  assert.equal(new Set(keys).size, keys.length); // all different
+  const errs = opts.map((o) => planError(remaining, o, [...foods, butter]));
+  assert.equal(errs[0], Math.min(...errs)); // closest first
+  const main = new Set(opts.flat().map((x) => x.foodId));
+  assert.ok(main.size >= 5, `options should use a variety of foods: ${[...main]}`);
+  assert.deepEqual(suggestOptions({ kcal: 0, protein: 0, carbs: 0, fat: 0 }, foods, butter), []);
 });

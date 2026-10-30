@@ -339,3 +339,16 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .sheet-action:active { transform: scale(0.96); }
 .sheet-action svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 @keyframes fade-in { from { opacity: 0; } }
+
+/* Suggestion options */
+.option { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 22px; background: var(--element); box-shadow: var(--shadow); animation: rise 360ms var(--ease) both; }
+.option:nth-of-type(2) { animation-delay: 60ms; }
+.option:nth-of-type(3) { animation-delay: 120ms; }
+.option:nth-of-type(4) { animation-delay: 180ms; }
+.option-head { display: flex; align-items: center; justify-content: space-between; }
+.option-head h2 { font-size: 20px; }
+.option-head .chip { margin: 0; }
+.option-item { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: baseline; }
+.option-item strong { font-variant-numeric: tabular-nums; }
+.option-item > span { display: flex; flex-direction: column; min-width: 0; }
+.option-total { padding-top: 8px; border-top: 1px solid var(--border); font-weight: 600; }
