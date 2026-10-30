@@ -18,6 +18,8 @@
     "@capacitor/camera": "^8.2.6",
     "@capacitor/core": "^8.6.0",
     "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/local-notifications": "^8.3.1",
     "@capawesome/capacitor-live-update": "^8.7.1",
     "@supabase/supabase-js": "^2.118.0",
     "jeep-sqlite": "^2.8.0",

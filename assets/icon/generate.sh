@@ -16,6 +16,13 @@ for d in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
   rsvg-convert -w "$(px 48)" "$T/round.svg" -o "$RES/mipmap-$n/ic_launcher_round.png"
   rsvg-convert -w "$(px 108)" foreground.svg -o "$RES/mipmap-$n/ic_launcher_foreground.png"
 done
+# Notification icon (white on transparent; Android tints it): 24 dp, same tight crop.
+wrap "16 16 76 76" '' > "$T/stat.svg"
+for d in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
+  n=${d%%:*}; s=${d##*:}
+  mkdir -p "$RES/drawable-$n"
+  rsvg-convert -w "$(awk "BEGIN{print int(24*$s)}")" "$T/stat.svg" -o "$RES/drawable-$n/ic_stat_icon.png"
+done
 # Splash screens: glyph centred on black, sized to 40% of the short side.
 for f in "$RES"/drawable*/splash.png; do
   w=$(sips -g pixelWidth "$f" | awk '/pixelWidth/{print $2}'); h=$(sips -g pixelHeight "$f" | awk '/pixelHeight/{print $2}')

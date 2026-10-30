@@ -151,12 +151,13 @@ Each phase ends with something you can use on the phone.
 **Done when:** photo of your lamb bowl logs as "Lamb bowl, 500 g lamb + 4 eggs" with your stored macros; an unknown dish logs as unverified.
 
 ### Phase 5 — Gym core
-- [ ] Seed exercises from bundled free-exercise-db JSON; search + muscle filter; custom exercise (name, muscle, optional photo).
-- [ ] Templates: exercises, sets × reps × weight, rest seconds per exercise, reorder.
-- [ ] Workout mode: elapsed timer at top; per set row `Previous | kg | reps | ✓`, pre-filled from last time; add/remove sets & exercises; mark set as warm-up; "Generate warm-ups" button.
-- [ ] ✓ → rest timer bar (±15 s, skip). Schedule a local notification + vibration at end time (`expo-notifications`, `expo-haptics`) so it fires with screen off.
-- [ ] Workout state saved to SQLite on every change → survives app kill.
-- [ ] Finish: summary; if structure changed → "Update template?".
+- [x] Exercises from bundled free-exercise-db JSON (753, stretches dropped; `scripts/trim-exercises.py`); search + muscle filter; custom exercise (name, muscle, equipment). *Custom exercise photo skipped.*
+- [x] Templates: exercises, sets × reps × weight, rest seconds per exercise, reorder.
+- [x] Workout mode: elapsed timer; per set row `Set | Previous | kg | reps | ✓`, pre-filled from last time; add/remove sets & exercises; tap set number to toggle warm-up; "Warm-ups" button.
+- [x] ✓ → rest timer bar (±15 s, skip). Local notification (`@capacitor/local-notifications`, exact alarm via `USE_EXACT_ALARM`) + vibration (`@capacitor/haptics`) at end time.
+- [x] Workout state saved to SQLite on every change → survives app kill.
+- [x] Finish: summary (time, volume, sets, best set); if structure changed → "Update template?".
+- [ ] Tested on phone: a real session with the screen locked between sets.
 **Done when:** a full real session logged on your phone with screen locked between sets.
 
 ### Phase 6 — History, stats, weight, export

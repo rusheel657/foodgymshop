@@ -49,4 +49,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Rest timer: exact alarm without a settings prompt (Android 13+; 12 grants SCHEDULE_EXACT_ALARM by default). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

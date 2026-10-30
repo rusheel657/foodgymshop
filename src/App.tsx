@@ -9,7 +9,8 @@ import { AccountProvider, useAccount, useProfile, useSession } from '@/lib/accou
 import { NavProvider } from '@/lib/nav';
 import { checkForUpdate } from '@/lib/updater';
 import { SignInScreen } from '@/screens/sign-in';
-import { FoodScreen, GymScreen, ProfileScreen, ShopScreen } from '@/screens/tabs';
+import { GymScreen } from '@/screens/gym';
+import { FoodScreen, ProfileScreen, ShopScreen } from '@/screens/tabs';
 
 const TABS = [
   { key: 'food', label: 'Food', icon: 'M7 2v9a2 2 0 0 0 2 2v9M11 2v9M7 2v0M9 2v6M17 2c-2 2-2 6 0 8v12', Screen: FoodScreen },

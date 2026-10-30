@@ -147,14 +147,6 @@ function Bar({ label, value, max }: { label: string; value: number; max: number 
   );
 }
 
-export function GymScreen() {
-  return (
-    <Screen title="Gym">
-      <EmptyState text="No templates yet." />
-    </Screen>
-  );
-}
-
 export function ShopScreen() {
   const foods = useLive(listFoods, ['foods']);
   if (!foods) return null;
