@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 import { ProfileForm } from '@/components/profile-form';
-import { Button, EmptyState, ListRow, Screen } from '@/components/ui';
+import { Button, EmptyState, ListRow, Meter, Screen } from '@/components/ui';
 import { clearShopList, listFoods, listMeals, setShopQty } from '@/db/diet';
 import { listLogs, logTimeFor } from '@/db/log';
 import { localDate, saveProfile, targetsFor } from '@/db/profile';
 import { useAccount } from '@/lib/account';
+import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { macrosFor, sumMacros } from '@/lib/nutrition';
 import { addPhoto, canUseCamera } from '@/lib/photos';
@@ -47,7 +48,7 @@ export function FoodScreen() {
     <Screen
       title={
         <span className="date-nav">
-          <button type="button" className="icon-button" aria-label="Previous day" onClick={() => setDate(shiftDate(date, -1))}>
+          <button type="button" className="icon-button" aria-label="Previous day" onClick={() => animate('fade', () => setDate(shiftDate(date, -1)))}>
             ‹
           </button>
           {dayLabel(date, today)}
@@ -56,7 +57,7 @@ export function FoodScreen() {
             className="icon-button"
             aria-label="Next day"
             disabled={date >= today}
-            onClick={() => setDate(shiftDate(date, 1))}>
+            onClick={() => animate('fade', () => setDate(shiftDate(date, 1)))}>
             ›
           </button>
         </span>
@@ -168,7 +169,13 @@ function Ring({ value, max }: { value: number; max: number }) {
   return (
     <svg className="ring" viewBox="0 0 64 64" aria-hidden="true">
       <circle cx="32" cy="32" r="26" className="ring-track" />
-      <circle cx="32" cy="32" r="26" className={value > max ? 'ring-fill over' : 'ring-fill'} strokeDasharray={`${f * c} ${c}`} />
+      <circle
+        cx="32"
+        cy="32"
+        r="26"
+        className={value > max ? 'ring-fill over' : 'ring-fill'}
+        style={{ strokeDasharray: c, strokeDashoffset: c * (1 - f), '--c': c } as CSSProperties}
+      />
     </svg>
   );
 }
@@ -179,7 +186,7 @@ function Bar({ label, value, max }: { label: string; value: number; max: number 
       <span className="small">
         {label} <span className="muted">{Math.round(value)} / {max} g</span>
       </span>
-      <progress value={Math.min(value, max)} max={max} aria-label={label} />
+      <Meter value={value} max={max} label={label} />
     </div>
   );
 }

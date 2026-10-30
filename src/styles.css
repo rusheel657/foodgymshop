@@ -129,10 +129,6 @@ input[type='range'] { width: 100%; accent-color: var(--text); }
 .ring-fill { stroke: var(--accent); stroke-linecap: round; }
 .ring-fill.over { stroke: var(--danger); }
 .bar { display: flex; flex-direction: column; gap: 4px; }
-.bar progress { appearance: none; width: 100%; height: 6px; border: 0; border-radius: 3px; background: var(--border); overflow: hidden; }
-.bar progress::-webkit-progress-bar { background: var(--border); }
-.bar progress::-webkit-progress-value { background: var(--text); border-radius: 3px; }
-.bar progress::-moz-progress-bar { background: var(--text); }
 .log-item { display: flex; flex-direction: column; gap: 2px; }
 .tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; border: 1px solid var(--muted); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
 .thumb.wide { width: 100%; height: auto; aspect-ratio: 4 / 3; }
@@ -162,9 +158,6 @@ select { flex: 1; min-width: 0; height: 48px; border: 0; background: none; color
 .workout-clock { font-variant-numeric: tabular-nums; margin-top: -16px; }
 .page:has(.rest-bar) { padding-bottom: calc(env(safe-area-inset-bottom) + 120px); }
 .rest-bar { position: fixed; inset: auto 0 0; background: var(--element); border-top: 1px solid var(--border); padding: 0 16px calc(env(safe-area-inset-bottom) + 8px); }
-.rest-bar progress { display: block; width: calc(100% + 32px); margin: 0 -16px; height: 4px; appearance: none; border: 0; background: var(--border); }
-.rest-bar progress::-webkit-progress-bar { background: var(--border); }
-.rest-bar progress::-webkit-progress-value { background: var(--accent); }
 .rest-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; }
 .rest-controls strong { font-size: 28px; font-variant-numeric: tabular-nums; }
 .rest-controls button { min-width: 56px; height: 44px; border-radius: 22px; border: 1px solid var(--border); background: none; }
@@ -197,3 +190,67 @@ select { flex: 1; min-width: 0; height: 48px; border: 0; background: none; color
 .cal-swatch.on { background: color-mix(in srgb, var(--accent) 45%, var(--element)); }
 .cal-swatch.under { background: color-mix(in srgb, var(--muted) 25%, var(--element)); }
 .cal-swatch.over { background: color-mix(in srgb, var(--danger) 40%, var(--element)); }
+
+/* ---- Motion ---- */
+:root { --ease: cubic-bezier(0.2, 0.8, 0.2, 1); --spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Screen changes (see lib/motion.ts). The tab bar stays put while pages slide. */
+.tabbar { view-transition-name: tabbar; }
+::view-transition-group(*) { animation-duration: 320ms; animation-timing-function: var(--ease); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 320ms; animation-timing-function: var(--ease); mix-blend-mode: normal; }
+html[data-nav='forward']::view-transition-old(root) { animation-name: vt-out-left; }
+html[data-nav='forward']::view-transition-new(root) { animation-name: vt-in-right; }
+html[data-nav='back']::view-transition-old(root) { animation-name: vt-out-right; z-index: 1; }
+html[data-nav='back']::view-transition-new(root) { animation-name: vt-in-left; }
+html[data-nav='fade']::view-transition-old(root) { animation: vt-fade-out 180ms var(--ease) both; }
+html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms var(--ease) both; }
+@keyframes vt-in-right { from { transform: translateX(100%); } }
+@keyframes vt-out-left { to { transform: translateX(-25%); opacity: 0.6; } }
+@keyframes vt-in-left { from { transform: translateX(-25%); opacity: 0.6; } }
+@keyframes vt-out-right { to { transform: translateX(100%); } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Press feedback */
+.button, .list-row, .icon-button, .back, .link, .tick, .set-label, .stepper button, .segmented button, .cal-day, .tabbar button, .rest-controls button {
+  transition: transform 180ms var(--ease), background-color 220ms var(--ease), color 220ms var(--ease), border-color 220ms var(--ease), opacity 220ms var(--ease);
+}
+.button:active:not(:disabled), .tick:active:not(:disabled), .stepper button:active:not(:disabled), .rest-controls button:active, .cal-day:active:not(:disabled) { transform: scale(0.95); }
+.icon-button:active:not(:disabled), .back:active, .link:active, .set-label:active { transform: scale(0.9); opacity: 0.7; }
+.list-row:active, .segmented button:active { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.tabbar button:active svg { transform: scale(0.88); }
+.tabbar svg { transition: transform 180ms var(--ease); }
+.tabbar button[aria-current='true'] svg { animation: pop 320ms var(--spring); }
+
+/* Ticks and set rows */
+.tick[aria-pressed='true'] { animation: pop 360ms var(--spring); }
+.set-row .input { transition: background-color 300ms var(--ease); }
+.shop-row .list-title { transition: color 220ms var(--ease); }
+.stepper span { display: inline-block; }
+@keyframes pop { 0% { transform: scale(0.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* Things that appear */
+.set-row:not(.head), .log-item, .meal-item, .thumb { animation: rise 280ms var(--ease) both; }
+.card, .list, .empty { animation: rise 340ms var(--ease) both; }
+.update-bar { animation: drop 360ms var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes drop { from { transform: translateY(-100%); } }
+
+/* Ring and bars glide to their values, and fill from empty when shown */
+.ring-fill { transition: stroke-dashoffset 700ms var(--ease), stroke 300ms var(--ease); animation: ring-in 900ms var(--ease) both; }
+@keyframes ring-in { from { stroke-dashoffset: var(--c); } }
+.meter { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.meter > div { height: 100%; background: var(--text); border-radius: 3px; transform-origin: left; transition: transform 700ms var(--ease); animation: meter-in 900ms var(--ease) both; }
+@keyframes meter-in { from { transform: scaleX(0); } }
+.rest-meter { height: 4px; border-radius: 0; margin: 0 -16px; }
+.rest-meter > div { background: var(--accent); border-radius: 0; transition: transform 1s linear; animation: none; }
+.rest-bar { animation: slide-up 320ms var(--ease) both; }
+@keyframes slide-up { from { transform: translateY(100%); } }
+
+/* Respect "remove animations" in system settings */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

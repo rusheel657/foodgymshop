@@ -1,8 +1,11 @@
 import { App } from '@capacitor/app';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { animate } from '@/lib/motion';
+
 // Minimal page stack on top of the tabs. Android's back button pops it, or exits on the root.
-type Nav = { push: (page: ReactNode) => void; pop: (count?: number) => void };
+/** `replace` swaps the top page in one step (two separate calls would animate twice and could apply out of order). */
+type Nav = { push: (page: ReactNode) => void; pop: (count?: number) => void; replace: (page: ReactNode) => void };
 
 const NavContext = createContext<Nav | null>(null);
 
@@ -19,8 +22,9 @@ export function NavProvider({ children }: { children: ReactNode }) {
   depth.current = stack.length;
 
   const nav = useRef<Nav>({
-    push: (page) => setStack((s) => [...s, { key: nextKey.current++, page }]),
-    pop: (count = 1) => setStack((s) => s.slice(0, Math.max(0, s.length - count))),
+    push: (page) => animate('forward', () => setStack((s) => [...s, { key: nextKey.current++, page }])),
+    pop: (count = 1) => animate('back', () => setStack((s) => s.slice(0, Math.max(0, s.length - count)))),
+    replace: (page) => animate('forward', () => setStack((s) => [...s.slice(0, -1), { key: nextKey.current++, page }])),
   }).current;
 
   useEffect(() => {

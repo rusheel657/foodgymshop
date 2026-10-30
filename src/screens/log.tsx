@@ -62,8 +62,7 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
         });
         const items = toLogItems(ai, foods, meals);
         const mealId = ai.find((a) => a.mealId)?.mealId ?? null;
-        nav.pop();
-        nav.push(
+        nav.replace(
           <LogFormScreen
             log={newLog(loggedAt, { source: 'photo', photoPath: photo, mealId, items })}
             isNew
@@ -91,8 +90,7 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
             title="Quick add instead"
             variant="secondary"
             onClick={() => {
-              nav.pop();
-              nav.push(<LogFormScreen log={newLog(loggedAt, { source: 'photo', photoPath: photo })} isNew />);
+              nav.replace(<LogFormScreen log={newLog(loggedAt, { source: 'photo', photoPath: photo })} isNew />);
             }}
           />
         </>

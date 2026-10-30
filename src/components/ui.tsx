@@ -158,3 +158,13 @@ export function TextInput({ label, value, onChange, placeholder }: {
     </span>
   );
 }
+
+/** A progress bar that glides between values (a native <progress> can't animate). */
+export function Meter({ value, max, label, className = 'meter' }: { value: number; max: number; label: string; className?: string }) {
+  const f = Math.min(1, max > 0 ? Math.max(0, value / max) : 0);
+  return (
+    <div className={className} role="progressbar" aria-label={label} aria-valuenow={Math.round(value)} aria-valuemax={Math.round(max)}>
+      <div style={{ transform: `scaleX(${f})` }} />
+    </div>
+  );
+}

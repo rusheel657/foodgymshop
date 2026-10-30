@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, Screen, SectionHead, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, SectionHead, TextInput } from '@/components/ui';
 import {
   activeWorkout, addExercise, addSet, DEFAULT_REST_S, deleteTemplate, discardWorkout, finishWorkout, getWorkout,
   groupSets, imageUrl, insertWarmups, listExercises, listTemplates, MUSCLES, previousSets, removeExercise, removeSet,
@@ -38,12 +38,12 @@ function Thumb({ exercise }: { exercise?: Exercise }) {
 }
 
 /** Starts a workout unless one is already running (then resumes it). */
-async function begin(userId: string, nav: ReturnType<typeof useNav>, template: Template | null) {
+async function begin(userId: string, nav: ReturnType<typeof useNav>, template: Template | null, replace = false) {
   const current = await activeWorkout();
   if (current && !confirm('A workout is already in progress. Resume it?')) return;
   const id = current?.id ?? (await startWorkout(userId, template));
   void prepareRestNotifications();
-  nav.push(<WorkoutScreen workoutId={id} />);
+  (replace ? nav.replace : nav.push)(<WorkoutScreen workoutId={id} />);
 }
 
 export function GymScreen() {
@@ -242,8 +242,7 @@ function TemplateFormScreen({ template, isNew }: { template: Template; isNew?: b
           disabled={!!invalid}
           onClick={async () => {
             await saveTemplate(userId, toTemplate());
-            nav.pop();
-            await begin(userId, nav, toTemplate());
+            await begin(userId, nav, toTemplate(), true);
           }}
         />
       )}
@@ -356,8 +355,7 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
         })),
       });
     }
-    nav.pop();
-    nav.push(<WorkoutSummaryScreen workout={done} exercises={exercises!} />);
+    nav.replace(<WorkoutSummaryScreen workout={done} exercises={exercises!} />);
   }
 
   async function discard() {
@@ -511,7 +509,7 @@ function RestBar() {
   if (!rest) return null;
   return (
     <div className="rest-bar" role="timer" aria-live="off">
-      <progress value={rest.left} max={rest.total} aria-label="Rest left" />
+      <Meter value={rest.left} max={rest.total} label="Rest left" className="meter rest-meter" />
       <div className="rest-controls">
         <button type="button" onClick={() => addRest(-15)}>
           −15

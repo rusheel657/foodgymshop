@@ -117,8 +117,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
           <Button
             title="Log this"
             onClick={() => {
-              nav.pop();
-              nav.push(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
+              nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
             }}
           />
         </>

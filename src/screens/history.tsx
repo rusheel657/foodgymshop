@@ -5,6 +5,7 @@ import { dailyTotals } from '@/db/log';
 import { targetsFor } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { dayStatus, monthGrid, monthStats, proteinHit, ymd } from '@/lib/history';
+import { animate } from '@/lib/motion';
 import { useLive } from '@/lib/use-live';
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -24,7 +25,8 @@ export function HistoryScreen({ onPickDay }: { onPickDay: (date: string) => void
   const stats = monthStats(days, t);
   const today = ymd(now);
   const isThisMonth = month.y === now.getFullYear() && month.m === now.getMonth();
-  const shift = (by: number) => setMonth(({ y, m }) => ({ y: new Date(y, m + by, 1).getFullYear(), m: new Date(y, m + by, 1).getMonth() }));
+  const shift = (by: number) =>
+    animate('fade', () => setMonth(({ y, m }) => ({ y: new Date(y, m + by, 1).getFullYear(), m: new Date(y, m + by, 1).getMonth() })));
   const r = Math.round;
 
   return (
