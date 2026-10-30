@@ -58,7 +58,10 @@ export function fromOffSearch(json: unknown): FoodDraft[] {
 }
 
 /** One row of a food log. Macros are kept per 100 g so changing grams rescales them. */
-export type LogItem = { foodId: string | null; name: string; grams: number; per100: Macros; verified: boolean };
+export type LogItem = {
+  foodId: string | null; name: string; grams: number; per100: Macros; verified: boolean;
+  fromMeal?: boolean; // expanded from a saved meal's fixed portions
+};
 
 /** One item returned by the analyze-meal Edge Function. */
 export type AiItem = {
@@ -79,7 +82,7 @@ export function toLogItems(ai: AiItem[], foods: DietFood[], meals: DietMeal[]): 
     if (meal) {
       return meal.items.flatMap((i) => {
         const f = foods.find((x) => x.id === i.foodId);
-        return f ? [fromFood(f, i.grams)] : [];
+        return f ? [{ ...fromFood(f, i.grams), fromMeal: true }] : [];
       });
     }
     const food = foods.find((x) => x.id === a.foodId);
@@ -91,4 +94,50 @@ export function toLogItems(ai: AiItem[], foods: DietFood[], meals: DietMeal[]): 
       per100: { kcal: a.kcal * k, protein: a.protein * k, carbs: a.carbs * k, fat: a.fat * k },
     }];
   });
+}
+
+/** How the user corrected the AI before logging. Rows from saved meals aren't the AI's guess, so they're ignored. */
+export type Correction =
+  | { kind: 'grams'; name: string; aiGrams: number; grams: number }
+  | { kind: 'removed'; name: string; aiGrams: number }
+  | { kind: 'missed'; name: string; grams: number };
+
+/** `ai` = rows as the AI returned them; `final` = rows as logged (AI rows keep their object identity unless removed). */
+export function diffCorrections(ai: LogItem[], final: { item: LogItem; grams: number }[]): Correction[] {
+  const out: Correction[] = [];
+  for (const a of ai) {
+    if (a.fromMeal) continue;
+    const kept = final.find((f) => f.item === a);
+    if (!kept) out.push({ kind: 'removed', name: a.name, aiGrams: Math.round(a.grams) });
+    // Ignore small nudges (<15%): only real misses teach anything.
+    else if (Math.abs(kept.grams - a.grams) > 0.15 * a.grams) {
+      out.push({ kind: 'grams', name: a.name, aiGrams: Math.round(a.grams), grams: Math.round(kept.grams) });
+    }
+  }
+  for (const f of final) {
+    if (!ai.includes(f.item) && !f.item.fromMeal) out.push({ kind: 'missed', name: f.item.name, grams: Math.round(f.grams) });
+  }
+  return out;
+}
+
+/** One line of the AI prompt per correction. */
+export function correctionNote(c: Correction) {
+  if (c.kind === 'grams') return `"${c.name}": you estimated ${c.aiGrams} g, it was actually ${c.grams} g.`;
+  if (c.kind === 'removed') return `"${c.name}" (${c.aiGrams} g) was not actually in the photo.`;
+  return `You missed "${c.name}" (${c.grams} g).`;
+}
+
+/** Median logged grams per food (needs at least 2 logs), rounded to 5 g. */
+export function usualGrams(rows: { foodId: string; grams: number }[]): Map<string, number> {
+  const byFood = new Map<string, number[]>();
+  for (const r of rows) byFood.set(r.foodId, [...(byFood.get(r.foodId) ?? []), r.grams]);
+  const out = new Map<string, number>();
+  for (const [id, g] of byFood) {
+    if (g.length < 2) continue;
+    const s = [...g].sort((a, b) => a - b);
+    const mid = s.length / 2;
+    const median = s.length % 2 ? s[Math.floor(mid)] : (s[mid - 1] + s[mid]) / 2;
+    out.set(id, Math.round(median / 5) * 5);
+  }
+  return out;
 }

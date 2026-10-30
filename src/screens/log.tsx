@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button, EmptyState, ListRow, NumberInput, num, Page, SectionHead } from '@/components/ui';
 import { listFoods, listMeals, mealMacros, type Food, type Meal } from '@/db/diet';
-import { deleteLog, saveLog, type FoodLog } from '@/db/log';
+import { deleteLog, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
 import { useAccount } from '@/lib/account';
 import { useNav } from '@/lib/nav';
-import { formatMacros, macrosFor, sumMacros, toLogItems, type LogItem } from '@/lib/nutrition';
+import {
+  correctionNote, diffCorrections, formatMacros, macrosFor, sumMacros, toLogItems, type LogItem,
+} from '@/lib/nutrition';
 import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
 import { useLive } from '@/lib/use-live';
@@ -32,10 +34,13 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
     started.current = attempt;
     (async () => {
       try {
-        const [foods, meals, image] = await Promise.all([listFoods(), listMeals(), photoBase64(photo)]);
+        const [foods, meals, image, usual, corrections] = await Promise.all([
+          listFoods(), listMeals(), photoBase64(photo), usualPortions(), recentCorrections(),
+        ]);
         const ai = await analyzeMeal({
           image,
-          foods: foods.map((f) => ({ id: f.id, name: f.name })),
+          foods: foods.map((f) => ({ id: f.id, name: f.name, usualGrams: usual.get(f.id) })),
+          notes: corrections.map(correctionNote),
           meals: meals.map((m) => ({
             id: m.id,
             name: m.name,
@@ -52,6 +57,7 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
           <LogFormScreen
             log={newLog(loggedAt, { source: 'photo', photoPath: photo, mealId, items })}
             isNew
+            aiItems={items}
             notice={items.length === 0 ? 'Nothing recognised. Add what you ate below.' : undefined}
           />,
         );
@@ -86,7 +92,10 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
 }
 
 /** Confirm a new entry (from a photo or quick-add) or edit a logged one. */
-export function LogFormScreen({ log, isNew, notice }: { log: FoodLog; isNew?: boolean; notice?: string }) {
+/** `aiItems`: the photo analysis as returned, so corrections can be remembered (see diffCorrections). */
+export function LogFormScreen({ log, isNew, notice, aiItems }: {
+  log: FoodLog; isNew?: boolean; notice?: string; aiItems?: LogItem[];
+}) {
   const nav = useNav();
   const { userId } = useAccount();
   const foods = useLive(listFoods, ['foods']);
@@ -103,6 +112,7 @@ export function LogFormScreen({ log, isNew, notice }: { log: FoodLog; isNew?: bo
 
   async function save() {
     await saveLog(userId, { ...log, mealId, items: rows.map((r) => ({ ...r.item, grams: r.g })) });
+    if (aiItems) await saveCorrections(userId, log.id, diffCorrections(aiItems, rows.map((r) => ({ item: r.item, grams: r.g }))));
     nav.pop();
   }
 

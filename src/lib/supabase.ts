@@ -55,8 +55,9 @@ export async function searchUsda(query: string): Promise<UsdaFood[]> {
 /** Photo (base64 JPEG) + My Diet names → matched items, via the analyze-meal Edge Function (Gemini). */
 export async function analyzeMeal(body: {
   image: string;
-  foods: { id: string; name: string }[];
+  foods: { id: string; name: string; usualGrams?: number }[];
   meals: { id: string; name: string; items: { name: string; grams: number }[] }[];
+  notes: string[];
 }): Promise<AiItem[]> {
   const { data, error } = await supabase.functions.invoke<{ items: AiItem[] }>('analyze-meal', { body });
   if (error) {

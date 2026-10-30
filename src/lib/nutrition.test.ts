@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -78,4 +78,34 @@ test('AI items → log rows: meal expands to stored portions, unknown dish is un
   ]);
   assert.deepEqual(rows[3].per100, { kcal: 130, protein: 2.5, carbs: 28, fat: 0.3 });
   assert.equal(formatMacros(sumMacros(rows.slice(0, 2).map((r) => macrosFor(r.per100, r.grams)))), '1631 kcal · P 136 · C 4 · F 119');
+});
+
+test('corrections: changed grams, removed and missed items; meal rows and small nudges ignored', () => {
+  const per100 = { kcal: 100, protein: 1, carbs: 1, fat: 1 };
+  const rice = { foodId: null, name: 'Rice', grams: 150, per100, verified: false };
+  const egg = { foodId: 'egg', name: 'Eggs', grams: 100, per100, verified: true };
+  const bar = { foodId: null, name: 'Chocolate bar', grams: 40, per100, verified: false };
+  const lamb = { foodId: 'lamb', name: 'Lamb', grams: 500, per100, verified: true, fromMeal: true };
+  const choc = { foodId: 'gb', name: "Green & Black's 70%", grams: 25, per100, verified: true };
+  const c = diffCorrections([rice, egg, bar, lamb], [
+    { item: rice, grams: 220 }, { item: egg, grams: 110 }, { item: lamb, grams: 300 }, { item: choc, grams: 25 },
+  ]);
+  assert.deepEqual(c, [
+    { kind: 'grams', name: 'Rice', aiGrams: 150, grams: 220 },
+    { kind: 'removed', name: 'Chocolate bar', aiGrams: 40 },
+    { kind: 'missed', name: "Green & Black's 70%", grams: 25 },
+  ]);
+  assert.deepEqual(c.map(correctionNote), [
+    '"Rice": you estimated 150 g, it was actually 220 g.',
+    '"Chocolate bar" (40 g) was not actually in the photo.',
+    'You missed "Green & Black\'s 70%" (25 g).',
+  ]);
+});
+
+test('usual grams = median per food, needs 2+ logs, rounded to 5 g', () => {
+  const m = usualGrams([
+    { foodId: 'lamb', grams: 240 }, { foodId: 'lamb', grams: 260 }, { foodId: 'lamb', grams: 500 },
+    { foodId: 'egg', grams: 100 }, { foodId: 'egg', grams: 123 }, { foodId: 'once', grams: 50 },
+  ]);
+  assert.deepEqual([...m], [['lamb', 260], ['egg', 110]]);
 });

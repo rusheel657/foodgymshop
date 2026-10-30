@@ -146,7 +146,8 @@ Each phase ends with something you can use on the phone.
 - [x] Edge Function `analyze-meal` (§4). Deployed; needs secret `GEMINI_API_KEY`. *Daily cap deferred (free tier limits itself; add `ai_calls` when friends join). Reference photos not sent (names + portions only).*
 - [x] Camera/gallery button → confirm screen (verified / UNVERIFIED rows, editable) → log.
 - [x] Edit / delete a logged entry.
-- [ ] Tested on phone with a real photo.
+- [x] Tested on phone with a real photo.
+- [x] Learns from corrections: grams changed / items removed / items missed are stored (`ai_corrections`); the last 20 plus each food's usual portion (90-day median) go into every prompt. *Next: send past photos of saved meals as examples.*
 **Done when:** photo of your lamb bowl logs as "Lamb bowl, 500 g lamb + 4 eggs" with your stored macros; an unknown dish logs as unverified.
 
 ### Phase 5 — Gym core

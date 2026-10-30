@@ -16,7 +16,7 @@ test('migrations build every table with sync columns and working constraints', (
     .all()
     .map((r) => String(r.name));
   assert.deepEqual(tables, [
-    'exercises', 'food_log_items', 'food_logs', 'foods', 'meal_items', 'meals', 'profile',
+    'ai_corrections', 'exercises', 'food_log_items', 'food_logs', 'foods', 'meal_items', 'meals', 'profile',
     'template_exercises', 'template_sets', 'templates', 'weight_logs', 'workout_sets', 'workouts',
   ]);
 

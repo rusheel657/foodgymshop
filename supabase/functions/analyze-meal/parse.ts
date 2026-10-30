@@ -1,8 +1,10 @@
 // Pure helpers for analyze-meal (no Deno APIs, so node:test can run them).
 
 export type Ref = { id: string; name: string };
+export type FoodRef = Ref & { usualGrams?: number };
 export type MealRef = Ref & { items: { name: string; grams: number }[] };
-export type Request = { image: string; foods: Ref[]; meals: MealRef[] };
+/** `notes`: the user's recent corrections of earlier analyses, one sentence each. */
+export type Request = { image: string; foods: FoodRef[]; meals: MealRef[]; notes: string[] };
 
 /** What the app gets back. Ids are the app's own ids; macros are only set for foods not in My Diet. */
 export type AiItem = {
@@ -30,12 +32,16 @@ export function parseRequest(body: unknown): Request | string {
     !b.meals.every((m) => isRef(m) && Array.isArray(m.items) && m.items.length <= 50 &&
       m.items.every((i) => typeof i?.name === 'string' && typeof i.grams === 'number'))
   ) return 'Bad meals';
-  return { image: b.image, foods: b.foods, meals: b.meals };
+  if (b.foods.some((f) => f.usualGrams !== undefined && typeof f.usualGrams !== 'number')) return 'Bad foods';
+  const notes = b.notes ?? [];
+  if (!Array.isArray(notes) || notes.length > 30 || !notes.every((n) => typeof n === 'string' && n.length <= 300)) return 'Bad notes';
+  return { image: b.image, foods: b.foods, meals: b.meals, notes };
 }
 
 /** Prompt text. Foods/meals get short ids (f1, m1) so the model can't mangle UUIDs. */
-export function buildPrompt({ foods, meals }: Request) {
-  const foodLines = foods.map((f, i) => `f${i + 1}: ${f.name}`).join('\n') || '(none)';
+export function buildPrompt({ foods, meals, notes }: Request) {
+  const foodLines =
+    foods.map((f, i) => `f${i + 1}: ${f.name}${f.usualGrams ? ` (usually ${f.usualGrams} g)` : ''}`).join('\n') || '(none)';
   const mealLines =
     meals.map((m, i) => `m${i + 1}: ${m.name} = ${m.items.map((x) => `${x.grams} g ${x.name}`).join(' + ')}`).join('\n') ||
     '(none)';
@@ -51,7 +57,15 @@ Rules:
 - If the plate matches a saved meal, return ONE item with meal_id set and the meal's name. Never estimate grams for a saved meal.
 - Otherwise, for each component that is one of the saved foods, set food_id and estimate grams. Leave the macros null.
 - Only for components that are not in either list: set meal_id and food_id to null, estimate grams, and estimate kcal, protein, carbs and fat (grams) for that portion.
-- Use the ids exactly as given (e.g. "m2", "f5"). If nothing edible is visible, return an empty list.`;
+- Use the ids exactly as given (e.g. "m2", "f5"). If nothing edible is visible, return an empty list.
+- A food's usual portion is a good starting point for grams; adjust it to what the photo shows.${
+  notes.length
+    ? `
+
+The user corrected your earlier analyses like this (newest first). Learn from these mistakes:
+${notes.map((n) => `- ${n}`).join('\n')}`
+    : ''
+}`;
 }
 
 const num = { type: 'NUMBER', nullable: true };

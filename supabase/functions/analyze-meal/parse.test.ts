@@ -5,14 +5,17 @@ import { buildPrompt, parseGemini, parseRequest, type Request } from './parse.ts
 
 const req: Request = {
   image: 'abc',
-  foods: [{ id: 'uuid-lamb', name: 'Lamb mince' }, { id: 'uuid-egg', name: 'Eggs' }],
+  foods: [{ id: 'uuid-lamb', name: 'Lamb mince', usualGrams: 250 }, { id: 'uuid-egg', name: 'Eggs' }],
   meals: [{ id: 'uuid-bowl', name: 'Lamb bowl', items: [{ name: 'Lamb mince', grams: 500 }, { name: 'Eggs', grams: 200 }] }],
+  notes: ['"Rice": you estimated 150 g, it was actually 220 g.'],
 };
 
 test('prompt lists meals with portions and foods with short ids', () => {
   const p = buildPrompt(req);
   assert.match(p, /m1: Lamb bowl = 500 g Lamb mince \+ 200 g Eggs/);
-  assert.match(p, /f2: Eggs/);
+  assert.match(p, /f1: Lamb mince \(usually 250 g\)\nf2: Eggs\n/);
+  assert.match(p, /Learn from these mistakes:\n- "Rice": you estimated 150 g, it was actually 220 g\./);
+  assert.doesNotMatch(buildPrompt({ ...req, notes: [] }), /mistakes/);
 });
 
 test('known meal → app meal id, grams ignored', () => {
@@ -48,5 +51,7 @@ test('request validation', () => {
   assert.equal(parseRequest({}), 'Bad image');
   assert.equal(parseRequest({ image: 'x', foods: [{ id: 1 }], meals: [] }), 'Bad foods');
   assert.equal(parseRequest({ image: 'x', foods: [], meals: [{ id: 'a', name: 'b', items: [{ name: 'c' }] }] }), 'Bad meals');
+  assert.equal(parseRequest({ ...req, notes: [5] }), 'Bad notes');
   assert.deepEqual(parseRequest(req), req);
+  assert.deepEqual(parseRequest({ ...req, notes: undefined }), { ...req, notes: [] }); // older app versions
 });

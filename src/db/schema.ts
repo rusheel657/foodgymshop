@@ -127,4 +127,14 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX workout_sets_workout ON workout_sets (workout_id);
   CREATE INDEX workout_sets_exercise ON workout_sets (exercise_id, completed_at);
   `,
+  // 2: how the user corrected the AI's photo analysis; recent ones are sent with each new photo so it learns.
+  `
+  CREATE TABLE ai_corrections (${SYNC},
+    food_log_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('grams','removed','missed')),
+    name TEXT NOT NULL,
+    ai_grams REAL,
+    grams REAL
+  );
+  `,
 ];

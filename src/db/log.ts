@@ -1,5 +1,5 @@
 import { all, run, write } from '@/db/db';
-import { macrosFor, type LogItem } from '@/lib/nutrition';
+import { macrosFor, usualGrams, type Correction, type LogItem } from '@/lib/nutrition';
 
 // Food log: one entry per meal eaten, with item macros copied at log time (editing a food later doesn't rewrite history).
 
@@ -80,4 +80,38 @@ export async function deleteLog(id: string) {
     await run('UPDATE food_logs SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ?', [now, now, id]);
     await run('UPDATE food_log_items SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE food_log_id = ?', [now, now, id]);
   });
+}
+
+/** Remembers how the user corrected a photo analysis. */
+export async function saveCorrections(userId: string, logId: string, list: Correction[]) {
+  if (list.length === 0) return;
+  const now = new Date().toISOString();
+  await write(['ai_corrections'], async () => {
+    for (const c of list) {
+      await run(
+        'INSERT INTO ai_corrections (id, user_id, updated_at, dirty, food_log_id, kind, name, ai_grams, grams) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)',
+        [crypto.randomUUID(), userId, now, logId, c.kind, c.name, 'aiGrams' in c ? c.aiGrams : null, 'grams' in c ? c.grams : null],
+      );
+    }
+  });
+}
+
+/** The most recent corrections, newest first. */
+export async function recentCorrections(limit = 20): Promise<Correction[]> {
+  const rows = await all<{ kind: Correction['kind']; name: string; ai_grams: number; grams: number }>(
+    'SELECT kind, name, ai_grams, grams FROM ai_corrections WHERE deleted_at IS NULL ORDER BY updated_at DESC, rowid DESC LIMIT ?',
+    [limit],
+  );
+  return rows.map((r) => ({ kind: r.kind, name: r.name, aiGrams: r.ai_grams, grams: r.grams }) as Correction);
+}
+
+/** Usual logged portion per food, from the last 90 days. */
+export async function usualPortions() {
+  const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const rows = await all<{ foodId: string; grams: number }>(
+    `SELECT i.food_id AS foodId, i.grams FROM food_log_items i JOIN food_logs l ON l.id = i.food_log_id
+     WHERE i.food_id IS NOT NULL AND i.deleted_at IS NULL AND l.deleted_at IS NULL AND l.logged_at >= ?`,
+    [since],
+  );
+  return usualGrams(rows);
 }
