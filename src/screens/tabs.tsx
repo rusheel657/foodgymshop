@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
 import { MyDietScreen } from '@/screens/diet';
+import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
 
@@ -128,6 +129,21 @@ export function FoodScreen() {
           title="At home"
           subtitle={counts && `${plural(counts.home, 'food')} in the kitchen`}
           onClick={() => nav.push(<AtHomeScreen />)}
+        />
+        <ListRow
+          title="History"
+          subtitle="Calendar of past days"
+          onClick={() =>
+            nav.push(
+              <HistoryScreen
+                onPickDay={(d) => {
+                  setDate(d);
+                  nav.pop();
+                  window.scrollTo(0, 0);
+                }}
+              />,
+            )
+          }
         />
       </div>
     </Screen>

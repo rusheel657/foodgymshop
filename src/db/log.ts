@@ -1,5 +1,6 @@
 import { all, run, write } from '@/db/db';
-import { macrosFor, usualGrams, type Correction, type LogItem } from '@/lib/nutrition';
+import { ymd } from '@/lib/history';
+import { macrosFor, usualGrams, type Correction, type LogItem, type Macros } from '@/lib/nutrition';
 
 // Food log: one entry per meal eaten, with item macros copied at log time (editing a food later doesn't rewrite history).
 
@@ -114,4 +115,20 @@ export async function usualPortions() {
     [since],
   );
   return usualGrams(rows);
+}
+
+/** Total macros per local day ("YYYY-MM-DD") for logs between two local dates (to exclusive). */
+export async function dailyTotals(from: string, to: string): Promise<Map<string, Macros>> {
+  const rows = await all<{ logged_at: string; kcal: number; protein: number; carbs: number; fat: number }>(
+    `SELECT l.logged_at, i.kcal, i.protein, i.carbs, i.fat FROM food_log_items i JOIN food_logs l ON l.id = i.food_log_id
+     WHERE i.deleted_at IS NULL AND l.deleted_at IS NULL AND l.logged_at >= ? AND l.logged_at < ?`,
+    [dayRange(from)[0], dayRange(to)[0]],
+  );
+  const out = new Map<string, Macros>();
+  for (const r of rows) {
+    const day = ymd(new Date(r.logged_at));
+    const m = out.get(day) ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+    out.set(day, { kcal: m.kcal + r.kcal, protein: m.protein + r.protein, carbs: m.carbs + r.carbs, fat: m.fat + r.fat });
+  }
+  return out;
 }
