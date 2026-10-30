@@ -137,4 +137,6 @@ export const MIGRATIONS: string[] = [
     grams REAL
   );
   `,
+  // 3: foods the user has at home right now (feeds "What should I eat?").
+  `ALTER TABLE foods ADD COLUMN at_home INTEGER NOT NULL DEFAULT 0;`,
 ];

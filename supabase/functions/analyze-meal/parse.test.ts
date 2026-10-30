@@ -8,6 +8,7 @@ const req: Request = {
   foods: [{ id: 'uuid-lamb', name: 'Lamb mince', usualGrams: 250 }, { id: 'uuid-egg', name: 'Eggs' }],
   meals: [{ id: 'uuid-bowl', name: 'Lamb bowl', items: [{ name: 'Lamb mince', grams: 500 }, { name: 'Eggs', grams: 200 }] }],
   notes: ['"Rice": you estimated 150 g, it was actually 220 g.'],
+  rules: ['Chicken and eggs are always cooked in "Butter".'],
 };
 
 test('prompt lists meals with portions and foods with short ids', () => {
@@ -15,7 +16,8 @@ test('prompt lists meals with portions and foods with short ids', () => {
   assert.match(p, /m1: Lamb bowl = 500 g Lamb mince \+ 200 g Eggs/);
   assert.match(p, /f1: Lamb mince \(usually 250 g\)\nf2: Eggs\n/);
   assert.match(p, /Learn from these mistakes:\n- "Rice": you estimated 150 g, it was actually 220 g\./);
-  assert.doesNotMatch(buildPrompt({ ...req, notes: [] }), /mistakes/);
+  assert.match(p, /always apply, even when it isn't visible\):\n- Chicken and eggs are always cooked in "Butter"\./);
+  assert.doesNotMatch(buildPrompt({ ...req, notes: [], rules: [] }), /mistakes|always apply/);
 });
 
 test('known meal → app meal id, grams ignored', () => {
@@ -53,5 +55,6 @@ test('request validation', () => {
   assert.equal(parseRequest({ image: 'x', foods: [], meals: [{ id: 'a', name: 'b', items: [{ name: 'c' }] }] }), 'Bad meals');
   assert.equal(parseRequest({ ...req, notes: [5] }), 'Bad notes');
   assert.deepEqual(parseRequest(req), req);
-  assert.deepEqual(parseRequest({ ...req, notes: undefined }), { ...req, notes: [] }); // older app versions
+  assert.equal(parseRequest({ ...req, rules: 'x' }), 'Bad rules');
+  assert.deepEqual(parseRequest({ ...req, notes: undefined, rules: undefined }), { ...req, notes: [], rules: [] }); // older app versions
 });

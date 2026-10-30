@@ -58,6 +58,7 @@ export async function analyzeMeal(body: {
   foods: { id: string; name: string; usualGrams?: number }[];
   meals: { id: string; name: string; items: { name: string; grams: number }[] }[];
   notes: string[];
+  rules: string[];
 }): Promise<AiItem[]> {
   const { data, error } = await supabase.functions.invoke<{ items: AiItem[] }>('analyze-meal', { body });
   if (error) {

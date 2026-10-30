@@ -3,8 +3,8 @@
 export type Ref = { id: string; name: string };
 export type FoodRef = Ref & { usualGrams?: number };
 export type MealRef = Ref & { items: { name: string; grams: number }[] };
-/** `notes`: the user's recent corrections of earlier analyses, one sentence each. */
-export type Request = { image: string; foods: FoodRef[]; meals: MealRef[]; notes: string[] };
+/** `notes`: the user's recent corrections of earlier analyses; `rules`: standing facts about how they cook. One sentence each. */
+export type Request = { image: string; foods: FoodRef[]; meals: MealRef[]; notes: string[]; rules: string[] };
 
 /** What the app gets back. Ids are the app's own ids; macros are only set for foods not in My Diet. */
 export type AiItem = {
@@ -33,13 +33,16 @@ export function parseRequest(body: unknown): Request | string {
       m.items.every((i) => typeof i?.name === 'string' && typeof i.grams === 'number'))
   ) return 'Bad meals';
   if (b.foods.some((f) => f.usualGrams !== undefined && typeof f.usualGrams !== 'number')) return 'Bad foods';
+  const sentences = (v: unknown) => Array.isArray(v) && v.length <= 30 && v.every((n) => typeof n === 'string' && n.length <= 300);
   const notes = b.notes ?? [];
-  if (!Array.isArray(notes) || notes.length > 30 || !notes.every((n) => typeof n === 'string' && n.length <= 300)) return 'Bad notes';
-  return { image: b.image, foods: b.foods, meals: b.meals, notes };
+  const rules = b.rules ?? [];
+  if (!sentences(notes)) return 'Bad notes';
+  if (!sentences(rules)) return 'Bad rules';
+  return { image: b.image, foods: b.foods, meals: b.meals, notes, rules };
 }
 
 /** Prompt text. Foods/meals get short ids (f1, m1) so the model can't mangle UUIDs. */
-export function buildPrompt({ foods, meals, notes }: Request) {
+export function buildPrompt({ foods, meals, notes, rules }: Request) {
   const foodLines =
     foods.map((f, i) => `f${i + 1}: ${f.name}${f.usualGrams ? ` (usually ${f.usualGrams} g)` : ''}`).join('\n') || '(none)';
   const mealLines =
@@ -59,6 +62,13 @@ Rules:
 - Only for components that are not in either list: set meal_id and food_id to null, estimate grams, and estimate kcal, protein, carbs and fat (grams) for that portion.
 - Use the ids exactly as given (e.g. "m2", "f5"). If nothing edible is visible, return an empty list.
 - A food's usual portion is a good starting point for grams; adjust it to what the photo shows.${
+  rules.length
+    ? `
+
+How this user cooks (always apply, even when it isn't visible):
+${rules.map((r) => `- ${r}`).join('\n')}`
+    : ''
+}${
   notes.length
     ? `
 

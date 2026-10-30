@@ -10,6 +10,7 @@ import {
 } from '@/lib/nutrition';
 import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
+import { BUTTER_PER_GRAM } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { FoodPickerScreen } from '@/screens/diet';
 
@@ -21,6 +22,14 @@ const fromFood = (f: Food, grams: number): LogItem => ({
   foodId: f.id, name: f.name, grams, verified: true,
   per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
 });
+
+/** The user's standing cooking rule (see suggest.ts): chicken and eggs are cooked in their butter. */
+function butterRule(foods: Food[]) {
+  const butter = foods.find((f) => /butter/i.test(f.name));
+  return butter
+    ? [`Chicken and eggs are always cooked in "${butter.name}": whenever chicken or eggs are present, also include it (about ${BUTTER_PER_GRAM * 100} g per 100 g of chicken or eggs).`]
+    : [];
+}
 
 /** Sends the photo to analyze-meal, then replaces itself with the confirm screen. */
 export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: string }) {
@@ -41,6 +50,7 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
           image,
           foods: foods.map((f) => ({ id: f.id, name: f.name, usualGrams: usual.get(f.id) })),
           notes: corrections.map(correctionNote),
+          rules: butterRule(foods),
           meals: meals.map((m) => ({
             id: m.id,
             name: m.name,

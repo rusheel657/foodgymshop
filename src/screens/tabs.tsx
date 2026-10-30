@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
 import { MyDietScreen } from '@/screens/diet';
+import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -23,10 +24,10 @@ export function FoodScreen() {
   const nav = useNav();
   const today = localDate();
   const [date, setDate] = useState(today);
-  const counts = useLive(
-    async () => ({ foods: (await listFoods()).length, meals: (await listMeals()).length }),
-    ['foods', 'meals'],
-  );
+  const counts = useLive(async () => {
+    const foods = await listFoods();
+    return { foods: foods.length, home: foods.filter((f) => f.atHome).length, meals: (await listMeals()).length };
+  }, ['foods', 'meals']);
   const logs = useLive(() => listLogs(date), ['food_logs', 'food_log_items'], [date]);
   const t = profile && targetsFor(profile);
   const eaten = sumMacros((logs ?? []).flatMap((l) => l.items.map((i) => macrosFor(i.per100, i.grams))));
@@ -86,6 +87,21 @@ export function FoodScreen() {
         />
       </div>
 
+      {t && (
+        <Button
+          title="What should I eat?"
+          variant="secondary"
+          onClick={() =>
+            nav.push(
+              <SuggestScreen
+                remaining={{ kcal: t.kcal - eaten.kcal, protein: t.protein - eaten.protein, carbs: t.carbs - eaten.carbs, fat: t.fat - eaten.fat }}
+                loggedAt={logTimeFor(date, today)}
+              />,
+            )
+          }
+        />
+      )}
+
       {logs?.length === 0 && <EmptyState text="No food logged." />}
       <div className="list">
         {logs?.map((l) => {
@@ -107,6 +123,11 @@ export function FoodScreen() {
           title="My Diet"
           subtitle={counts && `${plural(counts.foods, 'food')} · ${plural(counts.meals, 'meal')}`}
           onClick={() => nav.push(<MyDietScreen />)}
+        />
+        <ListRow
+          title="At home"
+          subtitle={counts && `${plural(counts.home, 'food')} in the kitchen`}
+          onClick={() => nav.push(<AtHomeScreen />)}
         />
       </div>
     </Screen>

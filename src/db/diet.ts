@@ -12,6 +12,7 @@ export type Food = Macros & {
   barcode: string | null;
   shopUnit: string | null;
   shopQty: number;
+  atHome: boolean;
 };
 
 export type MealItem = { foodId: string; grams: number };
@@ -20,7 +21,7 @@ export type Meal = { id: string; name: string; photos: string[]; items: MealItem
 type FoodRow = {
   id: string; name: string; kcal_100g: number; protein_100g: number; carbs_100g: number; fat_100g: number;
   default_grams: number | null; source: Food['source']; source_id: string | null; barcode: string | null;
-  shop_unit: string | null; shop_qty: number;
+  shop_unit: string | null; shop_qty: number; at_home: number;
 };
 
 export async function listFoods(): Promise<Food[]> {
@@ -28,7 +29,7 @@ export async function listFoods(): Promise<Food[]> {
   return rows.map((r) => ({
     id: r.id, name: r.name, kcal: r.kcal_100g, protein: r.protein_100g, carbs: r.carbs_100g, fat: r.fat_100g,
     defaultGrams: r.default_grams, source: r.source, sourceId: r.source_id, barcode: r.barcode,
-    shopUnit: r.shop_unit, shopQty: r.shop_qty,
+    shopUnit: r.shop_unit, shopQty: r.shop_qty, atHome: !!r.at_home,
   }));
 }
 
@@ -63,6 +64,12 @@ export async function deleteFood(id: string) {
 export async function setShopQty(id: string, qty: number) {
   await write(['foods'], () =>
     run('UPDATE foods SET shop_qty = ?, updated_at = ?, dirty = 1 WHERE id = ?', [Math.max(0, qty), new Date().toISOString(), id]),
+  );
+}
+
+export async function setAtHome(id: string, atHome: boolean) {
+  await write(['foods'], () =>
+    run('UPDATE foods SET at_home = ?, updated_at = ?, dirty = 1 WHERE id = ?', [atHome ? 1 : 0, new Date().toISOString(), id]),
   );
 }
 
