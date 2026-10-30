@@ -1,5 +1,7 @@
-import { Button, EmptyState, Page } from '@/components/ui';
-import { listFoods, setAtHome, type Food } from '@/db/diet';
+import { useState } from 'react';
+
+import { Button, EmptyState, NumberInput, num, Page } from '@/components/ui';
+import { listFoods, setAtHome, setHomeGrams, type Food } from '@/db/diet';
 import { usualPortions } from '@/db/log';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, sumMacros, type LogItem, type Macros } from '@/lib/nutrition';
@@ -15,20 +17,45 @@ export function AtHomeScreen() {
   if (!foods) return null;
   return (
     <Page title="At home">
-      <p className="muted">Tick what's in your kitchen. Suggestions only use these.</p>
+      <p className="muted">Tick what's in your kitchen and how much is left. Suggestions only use these, and never more than you have.</p>
       {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
       <div className="list">
         {foods.map((f) => (
-          <label key={f.id} className="list-row check-row">
-            <span>
-              <span className="list-title">{f.name}</span>
-              <span className="small muted">{f.shopUnit ?? '100 g'} · {formatMacros(f)}</span>
-            </span>
-            <input type="checkbox" checked={f.atHome} onChange={(e) => setAtHome(f.id, e.target.checked)} />
-          </label>
+          <HomeRow key={f.id} food={f} />
         ))}
       </div>
     </Page>
+  );
+}
+
+function HomeRow({ food: f }: { food: Food }) {
+  const [grams, setGrams] = useState(f.homeGrams === null ? '' : String(f.homeGrams));
+  const v = num(grams);
+  const invalid = grams.trim() !== '' && !(v >= 0 && v <= 20000);
+  return (
+    <div className="list-row home-row">
+      <label className="check-row">
+        <input type="checkbox" checked={f.atHome} onChange={(e) => setAtHome(f.id, e.target.checked)} />
+        <span>
+          <span className="list-title">{f.name}</span>
+          <span className="small muted">{invalid ? 'Enter 0–20000 g' : formatMacros(f) + ' per 100 g'}</span>
+        </span>
+      </label>
+      {f.atHome && (
+        <NumberInput
+          label={`Grams of ${f.name} at home`}
+          value={grams}
+          placeholder="any"
+          suffix="g"
+          onChange={(t) => {
+            setGrams(t);
+            const n = num(t);
+            if (t.trim() === '') void setHomeGrams(f.id, null);
+            else if (n >= 0 && n <= 20000) void setHomeGrams(f.id, n);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -43,7 +70,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   const plan = suggest(
     remaining,
-    home.map((f) => ({ ...f, maxGrams: maxGramsFor(f.kcal, usual.get(f.id)) })),
+    home.map((f) => ({ ...f, maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams) })),
     butter,
   );
   const items: LogItem[] = plan.map((p) => {

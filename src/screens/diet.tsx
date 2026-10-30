@@ -16,7 +16,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, ...patch,
 });
 
 export function MyDietScreen() {

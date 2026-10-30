@@ -75,8 +75,9 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
   return out;
 }
 
-/** Cap on how much of one food a suggestion may use: twice your usual portion, else 300 g (50 g for dense foods like honey, chocolate, butter). */
-export function maxGramsFor(kcalPer100: number, usual?: number) {
-  if (usual) return Math.max(50, usual * 2);
-  return kcalPer100 > 300 ? 50 : 300;
+/** Cap on how much of one food a suggestion may use: twice your usual portion, else 300 g (50 g for dense foods like
+ *  honey, chocolate, butter), and never more than you have at home (`homeGrams`, null = not limited). */
+export function maxGramsFor(kcalPer100: number, usual?: number, homeGrams: number | null = null) {
+  const cap = usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300;
+  return homeGrams === null ? cap : Math.min(cap, homeGrams);
 }

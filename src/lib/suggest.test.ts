@@ -47,10 +47,13 @@ test('respects caps and returns nothing when targets are already hit', () => {
   assert.deepEqual(suggest({ kcal: -100, protein: -5, carbs: 0, fat: 0 }, [chicken, bread], butter), []);
 });
 
-test('caps: twice the usual portion, else 300 g, 50 g for dense foods', () => {
+test('caps: twice the usual portion, else 300 g, 50 g for dense foods, never more than at home', () => {
   assert.equal(maxGramsFor(106, 200), 400);
   assert.equal(maxGramsFor(106), 300);
   assert.equal(maxGramsFor(580), 50);
   assert.equal(maxGramsFor(329), 50); // honey
   assert.equal(maxGramsFor(230), 300); // bread
+  assert.equal(maxGramsFor(106, undefined, 180), 180); // only 180 g chicken left at home
+  assert.equal(maxGramsFor(106, 200, 1000), 400);
+  assert.equal(maxGramsFor(106, undefined, 0), 0);
 });
