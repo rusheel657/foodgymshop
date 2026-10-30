@@ -10,6 +10,8 @@ export async function addPhoto(from: 'camera' | 'gallery'): Promise<string | nul
       : (await Camera.chooseFromGallery({ limit: 1 })).results[0];
   if (!picked?.uri) return null;
   // The camera's file lives in the cache, which Android may clear; keep our own copy.
+  // copy() needs the folder to exist; mkdir throws if it already does.
+  await Filesystem.mkdir({ path: 'photos', directory: Directory.Data, recursive: true }).catch(() => {});
   const { uri } = await Filesystem.copy({
     from: picked.uri,
     to: `photos/${crypto.randomUUID()}.jpg`,
