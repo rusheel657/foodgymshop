@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button, EmptyState, NumberInput, num, Page, Segmented } from '@/components/ui';
-import { listFoods, setAtHome, setHomeGrams, type Food } from '@/db/diet';
+import { listFoods, listStockChanges, setAtHome, setHomeGrams, type Food, type StockReason } from '@/db/diet';
 import { listLogs, usualPortions } from '@/db/log';
-import { targetsFor } from '@/db/profile';
-import { ymd } from '@/lib/history';
+import { localDate, targetsFor } from '@/db/profile';
+import { addDays, ymd } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
@@ -18,18 +18,85 @@ const isButter = (f: Food) => /butter/i.test(f.name);
 /** Tick the My Diet foods you have in the kitchen right now. */
 export function AtHomeScreen() {
   const foods = useLive(listFoods, ['foods']);
+  const [tab, setTab] = useState<'stock' | 'changes'>('stock');
   if (!foods) return null;
   return (
     <Page title="At home">
-      <p className="muted">Tick what's in your kitchen and how much is left. Suggestions only use these, and never more than you have.</p>
-      <StockTotals foods={foods} />
-      {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
-      <div className="list">
-        {foods.map((f) => (
-          <HomeRow key={f.id} food={f} />
-        ))}
-      </div>
+      <Segmented
+        options={[{ value: 'stock', label: 'Stock' }, { value: 'changes', label: 'Changes' }] as const}
+        value={tab}
+        onChange={(t) => animate('fade', () => setTab(t))}
+      />
+      {tab === 'changes' ? (
+        <StockChanges foods={foods} />
+      ) : (
+        <>
+          <p className="muted">Tick what's in your kitchen and how much is left. Suggestions only use these, and never more than you have.</p>
+          <StockTotals foods={foods} />
+          {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
+          <div className="list">
+            {foods.map((f) => (
+              <HomeRow key={f.id} food={f} />
+            ))}
+          </div>
+        </>
+      )}
     </Page>
+  );
+}
+
+const REASONS: Record<StockReason, string> = {
+  eaten: 'Eaten', edited: 'Log edited', returned: 'Log deleted, put back', bought: 'Bought', manual: 'Changed by hand',
+};
+
+/** Recent changes to what's at home, newest first, grouped by day. */
+function StockChanges({ foods }: { foods: Food[] }) {
+  const changes = useLive(() => listStockChanges(), ['stock_changes']);
+  if (!changes) return null;
+  if (changes.length === 0) return <EmptyState text="No changes yet. Eating, buying and editing amounts will show up here." />;
+  const today = localDate();
+  const dayOf = (iso: string) => localDate(new Date(iso));
+  const label = (d: string) =>
+    d === today ? 'Today' : d === addDays(today, -1) ? 'Yesterday' : new Date(`${d}T12:00`).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+  const days = [...new Set(changes.map((c) => dayOf(c.at)))];
+  return (
+    <>
+      {days.map((d) => (
+        <section key={d} className="stack-sm">
+          <h2 className="change-day">{label(d)}</h2>
+          <div className="list">
+            {changes
+              .filter((c) => dayOf(c.at) === d)
+              .map((c) => {
+                const f = foods.find((x) => x.id === c.foodId);
+                const piece = f?.pieceGrams;
+                const show = (g: number | null) => (g === null ? 'any' : amountLabel(g, piece));
+                const delta = c.before !== null && c.after !== null ? c.after - c.before : null;
+                const kind = delta === null ? 'set' : delta < 0 ? 'down' : 'up';
+                return (
+                  <div key={c.id} className={`change-row ${kind}`}>
+                    <span className="change-icon" aria-hidden="true">
+                      {kind === 'down' ? '−' : kind === 'up' ? '+' : '='}
+                    </span>
+                    <span className="grow">
+                      <span className="list-title">{f?.name ?? 'Deleted food'}</span>
+                      <span className="small muted">
+                        {REASONS[c.reason]} · {new Date(c.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </span>
+                    <span className="change-amount">
+                      <strong>{delta === null ? show(c.after) : `${delta > 0 ? '+' : '−'}${amountLabel(Math.abs(delta), piece)}`}</strong>
+                      <span className="small muted">
+                        {show(c.before)} → {show(c.after)}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 
@@ -108,6 +175,12 @@ function StockTotals({ foods }: { foods: Food[] }) {
 function HomeRow({ food: f }: { food: Food }) {
   // Counted foods (eggs) are entered as pieces; stored as grams.
   const [amount, setAmount] = useState(f.homeGrams === null ? '' : showAmount(f.homeGrams, f.pieceGrams));
+  // Follow changes made elsewhere (eating, buying), but not while the typed value already matches.
+  useEffect(() => {
+    const typed = amount.trim() === '' ? null : toGrams(num(amount), f.pieceGrams);
+    if (typed === f.homeGrams || (typed !== null && f.homeGrams !== null && Math.abs(typed - f.homeGrams) < 0.5)) return;
+    setAmount(f.homeGrams === null ? '' : showAmount(f.homeGrams, f.pieceGrams));
+  }, [f.homeGrams]);
   const v = toGrams(num(amount), f.pieceGrams);
   const invalid = amount.trim() !== '' && !(v >= 0 && v <= 20000);
   return (

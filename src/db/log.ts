@@ -1,4 +1,5 @@
 import { all, run, write } from '@/db/db';
+import { noteStockChange, type StockReason } from '@/db/diet';
 import { ymd } from '@/lib/history';
 import { macrosFor, usualGrams, type Correction, type LogItem, type Macros } from '@/lib/nutrition';
 
@@ -62,25 +63,28 @@ async function gramsInLog(logId: string) {
   return out;
 }
 
-/** Eating uses up what's at home: subtracts `used` grams per food from its At home amount (foods set to "any" aren't tracked). */
-async function useStock(used: Map<string, number>, now: string) {
+/** Eating uses up what's at home: subtracts `used` grams per food from its At home amount and notes the change
+ *  (foods set to "any" aren't tracked). Call inside write(). */
+async function useStock(used: Map<string, number>, reason: StockReason, now: string) {
   for (const [id, grams] of used) {
     if (Math.abs(grams) < 0.01) continue;
-    await run(
-      'UPDATE foods SET home_grams = MAX(0, home_grams - ?), updated_at = ?, dirty = 1 WHERE id = ? AND home_grams IS NOT NULL',
-      [grams, now, id],
-    );
+    const before = (await all<{ home_grams: number | null }>('SELECT home_grams FROM foods WHERE id = ?', [id]))[0]?.home_grams ?? null;
+    if (before === null) continue;
+    const after = Math.max(0, before - grams);
+    await run('UPDATE foods SET home_grams = ?, updated_at = ?, dirty = 1 WHERE id = ?', [after, now, id]);
+    await noteStockChange(id, reason, before, after, now);
   }
 }
 
 /** Upserts the entry and replaces its items; the change in grams eaten comes off the At home amounts. */
 export async function saveLog(userId: string, log: FoodLog) {
   const now = new Date().toISOString();
-  await write(['food_logs', 'food_log_items', 'foods'], async () => {
+  await write(['food_logs', 'food_log_items', 'foods', 'stock_changes'], async () => {
     const used = new Map<string, number>();
-    for (const [id, g] of await gramsInLog(log.id)) used.set(id, -g); // an edit only uses the difference
+    const before = await gramsInLog(log.id);
+    for (const [id, g] of before) used.set(id, -g); // an edit only uses the difference
     for (const i of log.items) if (i.foodId) used.set(i.foodId, (used.get(i.foodId) ?? 0) + i.grams);
-    await useStock(used, now);
+    await useStock(used, before.size ? 'edited' : 'eaten', now);
     await run(
       `INSERT INTO food_logs (id, user_id, updated_at, dirty, logged_at, meal_id, photo_path, source) VALUES (?, ?, ?, 1, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET updated_at = excluded.updated_at, dirty = 1, logged_at = excluded.logged_at`,
@@ -104,8 +108,8 @@ export async function saveLog(userId: string, log: FoodLog) {
 /** Deletes the entry and puts its food back in the At home amounts. */
 export async function deleteLog(id: string) {
   const now = new Date().toISOString();
-  await write(['food_logs', 'food_log_items', 'foods'], async () => {
-    await useStock(new Map([...(await gramsInLog(id))].map(([food, g]) => [food, -g])), now);
+  await write(['food_logs', 'food_log_items', 'foods', 'stock_changes'], async () => {
+    await useStock(new Map([...(await gramsInLog(id))].map(([food, g]) => [food, -g])), 'returned', now);
     await run('UPDATE food_logs SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ?', [now, now, id]);
     await run('UPDATE food_log_items SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE food_log_id = ?', [now, now, id]);
   });

@@ -86,19 +86,58 @@ export async function setAtHome(id: string, atHome: boolean) {
   );
 }
 
-export async function setHomeGrams(id: string, grams: number | null) {
-  await write(['foods'], () =>
-    run('UPDATE foods SET home_grams = ?, updated_at = ?, dirty = 1 WHERE id = ?', [grams, new Date().toISOString(), id]),
+export type StockReason = 'eaten' | 'edited' | 'returned' | 'bought' | 'manual';
+export type StockChange = { id: string; foodId: string; reason: StockReason; before: number | null; after: number | null; at: string };
+
+/** Notes a change to a food's At home amount (call inside write()). Typing in the amount box counts as one change
+ *  per minute, so a few keystrokes don't fill the list. */
+export async function noteStockChange(foodId: string, reason: StockReason, before: number | null, after: number | null, now: string) {
+  if (before === after) return;
+  if (reason === 'manual') {
+    const last = await all<{ id: string; reason: string; changed_at: string }>(
+      'SELECT id, reason, changed_at FROM stock_changes WHERE food_id = ? AND deleted_at IS NULL ORDER BY changed_at DESC, rowid DESC LIMIT 1',
+      [foodId],
+    );
+    if (last[0]?.reason === 'manual' && Date.parse(now) - Date.parse(last[0].changed_at) < 60_000) {
+      await run('UPDATE stock_changes SET after_grams = ?, changed_at = ?, updated_at = ?, dirty = 1 WHERE id = ?', [after, now, now, last[0].id]);
+      return;
+    }
+  }
+  await run(
+    'INSERT INTO stock_changes (id, updated_at, dirty, food_id, reason, before_grams, after_grams, changed_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), now, foodId, reason, before, after, now],
   );
+}
+
+const homeGramsOf = async (id: string) =>
+  (await all<{ home_grams: number | null }>('SELECT home_grams FROM foods WHERE id = ?', [id]))[0]?.home_grams ?? null;
+
+export async function setHomeGrams(id: string, grams: number | null) {
+  const now = new Date().toISOString();
+  await write(['foods', 'stock_changes'], async () => {
+    const before = await homeGramsOf(id);
+    await run('UPDATE foods SET home_grams = ?, updated_at = ?, dirty = 1 WHERE id = ?', [grams, now, id]);
+    await noteStockChange(id, 'manual', before, grams, now);
+  });
+}
+
+/** Recent At home changes, newest first. */
+export async function listStockChanges(limit = 80): Promise<StockChange[]> {
+  const rows = await all<{ id: string; food_id: string; reason: StockReason; before_grams: number | null; after_grams: number | null; changed_at: string }>(
+    'SELECT * FROM stock_changes WHERE deleted_at IS NULL ORDER BY changed_at DESC, rowid DESC LIMIT ?',
+    [limit],
+  );
+  return rows.map((r) => ({ id: r.id, foodId: r.food_id, reason: r.reason, before: r.before_grams, after: r.after_grams, at: r.changed_at }));
 }
 
 /** Bought `grams` of a food: it's now at home, and its At home amount goes up. */
 export async function restock(id: string, grams: number) {
-  await write(['foods'], () =>
-    run('UPDATE foods SET at_home = 1, home_grams = COALESCE(home_grams, 0) + ?, updated_at = ?, dirty = 1 WHERE id = ?', [
-      grams, new Date().toISOString(), id,
-    ]),
-  );
+  const now = new Date().toISOString();
+  await write(['foods', 'stock_changes'], async () => {
+    const before = await homeGramsOf(id);
+    await run('UPDATE foods SET at_home = 1, home_grams = COALESCE(home_grams, 0) + ?, updated_at = ?, dirty = 1 WHERE id = ?', [grams, now, id]);
+    await noteStockChange(id, 'bought', before, (before ?? 0) + grams, now);
+  });
 }
 
 export async function clearShopList() {

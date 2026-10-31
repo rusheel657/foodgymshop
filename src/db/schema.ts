@@ -152,4 +152,15 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE foods ADD COLUMN min_grams REAL;
   ALTER TABLE foods ADD COLUMN pairs_with TEXT NOT NULL DEFAULT '[]';
   `,
+  // 7: history of At home amounts (eaten, bought, edited by hand…), newest shown first on At home → Changes.
+  `
+  CREATE TABLE stock_changes (${SYNC},
+    food_id TEXT NOT NULL,
+    reason TEXT NOT NULL CHECK (reason IN ('eaten','edited','returned','bought','manual')),
+    before_grams REAL,
+    after_grams REAL,
+    changed_at TEXT NOT NULL
+  );
+  CREATE INDEX stock_changes_at ON stock_changes (changed_at);
+  `,
 ];

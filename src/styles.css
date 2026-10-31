@@ -433,3 +433,15 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .stock-sources .src-row strong { color: var(--tone); }
 .stock-macros strong { font-size: 18px; color: var(--tone); font-variant-numeric: tabular-nums; }
 .shop-days { display: flex; flex-direction: column; gap: 8px; }
+
+/* At home → Changes */
+.change-day { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.change-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; position: relative; }
+.change-row + .change-row::before { content: ''; position: absolute; top: 0; left: 60px; right: 0; height: 1px; background: var(--border); }
+.change-row.down { --tone: var(--danger); }
+.change-row.up { --tone: var(--accent); }
+.change-row.set { --tone: var(--muted); }
+.change-icon { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 16px; font-size: 18px; font-weight: 700; color: var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent); }
+.change-row .grow { display: flex; flex-direction: column; min-width: 0; }
+.change-amount { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.change-amount strong { color: var(--tone); font-variant-numeric: tabular-nums; }
