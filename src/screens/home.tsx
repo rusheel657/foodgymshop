@@ -1,12 +1,15 @@
 import { useState } from 'react';
 
-import { Button, EmptyState, NumberInput, num, Page } from '@/components/ui';
+import { Button, EmptyState, NumberInput, num, Page, Segmented } from '@/components/ui';
 import { listFoods, setAtHome, setHomeGrams, type Food } from '@/db/diet';
 import { listLogs, usualPortions } from '@/db/log';
+import { targetsFor } from '@/db/profile';
 import { ymd } from '@/lib/history';
+import { useAccount } from '@/lib/account';
+import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { amountLabel, formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
-import { maxGramsFor, suggestOptions } from '@/lib/suggest';
+import { maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { LogFormScreen, newLog } from '@/screens/log';
 
@@ -62,16 +65,28 @@ function HomeRow({ food: f }: { food: Food }) {
 }
 
 /** Exact grams of at-home foods that fill the rest of the day's macros. */
+const SIZE_OPTIONS = [
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
+] as const;
+
 export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; loggedAt: string }) {
   const nav = useNav();
+  const { profile } = useAccount();
+  const [size, setSize] = useState<MealSize>(() => {
+    const saved = localStorage.getItem('meal-size');
+    return saved && saved in MEAL_SIZES ? (saved as MealSize) : 'medium';
+  });
   const day = ymd(new Date(loggedAt));
   const data = useLive(
     async () => ({ foods: await listFoods(), usual: await usualPortions(), logs: await listLogs(day) }),
     ['foods', 'food_logs', 'food_log_items'],
     [day],
   );
-  if (!data) return null;
+  if (!data || !profile) return null;
   const { foods, usual, logs } = data;
+  const meal = mealTarget(remaining, targetsFor(profile).kcal, size);
   // Grams of each food already eaten that day, so daily limits count it.
   const eaten = new Map<string, number>();
   for (const i of logs.flatMap((l) => l.items)) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
@@ -79,7 +94,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   const options = suggestOptions(
-    remaining,
+    meal,
     home.map((f) => ({
       ...f,
       maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0), f.minGrams),
@@ -97,10 +112,21 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
 
   return (
     <Page title="What to eat">
+      <Segmented
+        options={SIZE_OPTIONS}
+        value={size}
+        onChange={(s) => {
+          localStorage.setItem('meal-size', s);
+          animate('fade', () => setSize(s));
+        }}
+      />
       <div className="card">
-        <span className="label">Left today</span>
+        <span className="label">{SIZE_OPTIONS.find((o) => o.value === size)!.label} meal</span>
         <p>
-          {left(remaining.kcal)} kcal · P {left(remaining.protein)} g · C {left(remaining.carbs)} g · F {left(remaining.fat)} g
+          {left(meal.kcal)} kcal · P {left(meal.protein)} g · C {left(meal.carbs)} g · F {left(meal.fat)} g
+        </p>
+        <p className="small muted">
+          {left(remaining.kcal)} kcal left today
         </p>
       </div>
 

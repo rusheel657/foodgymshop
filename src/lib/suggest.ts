@@ -166,3 +166,17 @@ export function suggestOptions(
   }
   return picked.map((o) => o.plan);
 }
+
+/** Meal sizes as a share of the day's calories. */
+export const MEAL_SIZES = { small: 0.2, medium: 0.33, large: 0.45 } as const;
+export type MealSize = keyof typeof MEAL_SIZES;
+
+/** What one meal of `size` should hold: that share of the day's calories, never more than what's left,
+ *  with the macros in the same proportions as what's left. */
+export function mealTarget(remaining: Macros, dailyKcal: number, size: MealSize): Macros {
+  const left = Math.max(0, remaining.kcal);
+  if (left === 0) return { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const f = Math.min(left, dailyKcal * MEAL_SIZES[size]) / left;
+  const part = (g: number) => Math.max(0, g) * f;
+  return { kcal: left * f, protein: part(remaining.protein), carbs: part(remaining.carbs), fat: part(remaining.fat) };
+}

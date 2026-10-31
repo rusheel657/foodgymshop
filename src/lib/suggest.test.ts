@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { maxGramsFor, planError, suggest, suggestOptions, type Suggestion } from './suggest.ts';
+import { maxGramsFor, mealTarget, planError, suggest, suggestOptions, type Suggestion } from './suggest.ts';
 
 const f = (id: string, name: string, kcal: number, protein: number, carbs: number, fat: number, maxGrams = 300) =>
   ({ id, name, kcal, protein, carbs, fat, maxGrams });
@@ -111,4 +111,14 @@ test('smallest portion: a food is either left out or at least its minimum', () =
   for (const x of s.filter((x) => x.foodId === 'lamb')) assert.ok(x.grams >= 150, JSON.stringify(s));
   // Minimum bigger than what's allowed (daily limit left) → the food is skipped.
   assert.ok(!suggest({ kcal: 900, protein: 60, carbs: 0, fat: 50 }, [{ ...lambMin, maxGrams: 100 }], null).length);
+});
+
+test('meal sizes: share of the day, capped at what is left, macros in proportion', () => {
+  const left = { kcal: 2000, protein: 150, carbs: 200, fat: 60 };
+  const m = mealTarget(left, 3000, 'medium'); // 33% of 3000 = 990 kcal
+  assert.equal(Math.round(m.kcal), 990);
+  assert.equal(Math.round(m.protein), Math.round(150 * 990 / 2000));
+  assert.equal(Math.round(mealTarget(left, 3000, 'large').kcal), 1350);
+  assert.equal(mealTarget({ ...left, kcal: 400 }, 3000, 'large').kcal, 400); // only 400 left
+  assert.equal(mealTarget({ ...left, kcal: -50 }, 3000, 'small').kcal, 0);
 });
