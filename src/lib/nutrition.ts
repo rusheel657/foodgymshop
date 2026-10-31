@@ -153,3 +153,10 @@ export function amountLabel(grams: number, pieceGrams?: number | null) {
   const n = showAmount(grams, pieceGrams);
   return `${n} ${pieceGrams && n === '1' ? 'pc' : unitOf(pieceGrams)}`;
 }
+
+/** How long an amount lasts at a daily target: "under a day", "1 day", "2 days" (whole days, rounded down). */
+export function lastsFor(amount: number, perDay: number) {
+  if (perDay <= 0) return 'a long time';
+  const days = Math.floor(amount / perDay);
+  return days < 1 ? 'under a day' : days === 1 ? '1 day' : `${days} days`;
+}

@@ -423,6 +423,13 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .stock-kcal { display: flex; align-items: baseline; gap: 8px; }
 .stock-kcal strong { font-size: 36px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .stock-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.stock-macros > span { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 14px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--tone) 12%, transparent); }
+.stock-macros > button { display: flex; flex-direction: column; align-items: flex-start; padding: 10px 12px; border: 1px solid transparent; border-radius: 14px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--tone) 12%, transparent); text-align: left; transition: transform 180ms var(--ease), border-color 200ms var(--ease); }
+.stock-macros > button:active { transform: scale(0.96); }
+.stock-macros > button[aria-expanded='true'] { border-color: var(--tone); }
+.stock-lasts { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--tone); }
+.stock-days { font-size: 17px; }
+.stock-days strong { color: var(--accent); }
+.stock-sources { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); animation: rise 260ms var(--ease) both; }
+.stock-sources .src-row strong { color: var(--tone); }
 .stock-macros strong { font-size: 18px; color: var(--tone); font-variant-numeric: tabular-nums; }
 .shop-days { display: flex; flex-direction: column; gap: 8px; }

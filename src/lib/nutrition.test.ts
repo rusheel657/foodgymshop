@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams, amountLabel, showAmount, toGrams } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams, amountLabel, showAmount, toGrams, lastsFor } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -117,4 +117,11 @@ test('counted foods show in pieces (nearest half), others in grams', () => {
   assert.equal(amountLabel(152.4, null), '152 g');
   assert.equal(toGrams(3, 50), 150);
   assert.equal(toGrams(120, null), 120);
+});
+
+test('how long stock lasts', () => {
+  assert.equal(lastsFor(384, 176), '2 days');
+  assert.equal(lastsFor(725, 115), '6 days');
+  assert.equal(lastsFor(176, 176), '1 day');
+  assert.equal(lastsFor(90, 176), 'under a day');
 });

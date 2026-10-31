@@ -8,7 +8,7 @@ import { ymd } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
-import { amountLabel, formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
+import { amountLabel, formatMacros, lastsFor, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
 import { maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { LogFormScreen, newLog } from '@/screens/log';
@@ -33,22 +33,73 @@ export function AtHomeScreen() {
   );
 }
 
-/** What's in the kitchen in total; foods set to "any" have no amount to add up. */
+const STOCK_MACROS = [
+  { key: 'protein', label: 'protein' },
+  { key: 'carbs', label: 'carbs' },
+  { key: 'fat', label: 'fat' },
+] as const;
+
+/** What's in the kitchen in total and how long it lasts at your daily targets; tap a macro for its sources.
+ *  Foods set to "any" have no amount to add up. */
 function StockTotals({ foods }: { foods: Food[] }) {
+  const { profile } = useAccount();
+  const [open, setOpen] = useState<(typeof STOCK_MACROS)[number]['key'] | null>(null);
   const counted = foods.filter((f) => f.atHome && f.homeGrams !== null);
   const anyCount = foods.filter((f) => f.atHome && f.homeGrams === null).length;
   const t = sumMacros(counted.map((f) => macrosFor(f, f.homeGrams!)));
+  const target = profile && targetsFor(profile);
+  // The macro that runs out first sets how long the kitchen lasts.
+  const first = target && [...STOCK_MACROS].sort((a, b) => t[a.key] / target[a.key] - t[b.key] / target[b.key])[0];
   return (
     <div className="stock-totals">
       <div className="stock-kcal">
         <strong>{Math.round(t.kcal).toLocaleString()}</strong>
         <span className="small muted">kcal at home</span>
       </div>
+      {target && first && (
+        <p className="stock-days">
+          Enough for <strong>{lastsFor(t[first.key], target[first.key])}</strong>
+          <span className="small muted"> · {first.label} {first.key === 'carbs' ? 'run' : 'runs'} out first</span>
+        </p>
+      )}
       <div className="stock-macros">
-        <span className="protein"><strong>{Math.round(t.protein)} g</strong>protein</span>
-        <span className="carbs"><strong>{Math.round(t.carbs)} g</strong>carbs</span>
-        <span className="fat"><strong>{Math.round(t.fat)} g</strong>fat</span>
+        {STOCK_MACROS.map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            className={m.key}
+            aria-expanded={open === m.key}
+            onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
+            <strong>{Math.round(t[m.key])} g</strong>
+            {m.label}
+            {target && <span className="stock-lasts">lasts {lastsFor(t[m.key], target[m.key])}</span>}
+          </button>
+        ))}
       </div>
+      {open && target && (
+        <div className={`stock-sources ${open}`}>
+          <p className="small">
+            <strong>{Math.round(t[open])} g {open}</strong> at home · you need {target[open]} g a day, so it lasts{' '}
+            <strong>{lastsFor(t[open], target[open])}</strong>
+          </p>
+          {counted
+            .map((f) => ({ f, g: macrosFor(f, f.homeGrams!)[open] }))
+            .filter((r) => r.g >= 0.5)
+            .sort((a, b) => b.g - a.g)
+            .map(({ f, g }) => (
+              <div key={f.id} className="src-row">
+                <span className="grow">
+                  {f.name}
+                  <span className="small muted">
+                    {amountLabel(f.homeGrams!, f.pieceGrams)} at home · {Math.round((g / t[open]) * 100)}% of it
+                  </span>
+                </span>
+                <strong>{Math.round(g)} g</strong>
+              </div>
+            ))}
+          {t[open] < 0.5 && <p className="small muted">Nothing at home has {open}.</p>}
+        </div>
+      )}
       {anyCount > 0 && <p className="small muted">Plus {anyCount === 1 ? '1 food' : `${anyCount} foods`} set to "any", not counted. Enter an amount to include it.</p>}
     </div>
   );
