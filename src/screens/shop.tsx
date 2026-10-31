@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Page } from '@/components/ui';
+import { Page, Segmented } from '@/components/ui';
 import { listFoods, restock, type Food } from '@/db/diet';
 import { listLogs } from '@/db/log';
 import { localDate, targetsFor, type Profile } from '@/db/profile';
 import { useAccount } from '@/lib/account';
+import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
 import { maxGramsFor, planShopping } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
@@ -12,8 +13,8 @@ import { useLive } from '@/lib/use-live';
 const isButter = (f: Food) => /butter/i.test(f.name);
 const pos = (n: number) => Math.max(0, n);
 
-/** Can what's at home cover the rest of today plus tomorrow? If not, what to buy. Reloads as you log, shop or restock. */
-async function loadShopping(profile: Profile) {
+/** Can what's at home cover the rest of today plus the next `days` days? If not, what to buy. */
+async function loadShopping(profile: Profile, days: number) {
   const [foods, logs] = await Promise.all([listFoods(), listLogs(localDate())]);
   const t = targetsFor(profile);
   const items = logs.flatMap((l) => l.items);
@@ -22,36 +23,59 @@ async function loadShopping(profile: Profile) {
   for (const i of items) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
   const daily = { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat };
   const required = {
-    kcal: pos(t.kcal - eatenMacros.kcal) + t.kcal,
-    protein: pos(t.protein - eatenMacros.protein) + t.protein,
-    carbs: pos(t.carbs - eatenMacros.carbs) + t.carbs,
-    fat: pos(t.fat - eatenMacros.fat) + t.fat,
+    kcal: pos(t.kcal - eatenMacros.kcal) + days * t.kcal,
+    protein: pos(t.protein - eatenMacros.protein) + days * t.protein,
+    carbs: pos(t.carbs - eatenMacros.carbs) + days * t.carbs,
+    fat: pos(t.fat - eatenMacros.fat) + days * t.fat,
   };
-  // Two days of a daily limit, minus what's already eaten today.
-  const limitLeft = (f: Food) => (f.dailyMaxGrams === null ? Infinity : pos(f.dailyMaxGrams * 2 - (eaten.get(f.id) ?? 0)));
+  const span = days + 1; // today counts as a day for limits and caps
+  // The daily limit for every day in the span, minus what's already eaten today.
+  const limitLeft = (f: Food) => (f.dailyMaxGrams === null ? Infinity : pos(f.dailyMaxGrams * span - (eaten.get(f.id) ?? 0)));
   const needs = (f: Food) => f.pairsWith.filter((id) => foods.some((x) => x.id === id));
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
-  // At home: up to what you have. "Any" has no amount, so it counts as two days of a normal portion cap
+  // At home: up to what you have. "Any" has no amount, so it counts as a normal portion cap for each day
   // (otherwise 500 g of honey would look like a plan).
-  const twoDays = (f: Food) => 2 * maxGramsFor(f.kcal, undefined, null, null, f.minGrams);
-  const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? twoDays(f), limitLeft(f)) : 0);
+  const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, undefined, null, null, f.minGrams);
+  const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? capForSpan(f), limitLeft(f)) : 0);
   // Butter counts as a food too (its fat is real food at home), besides being cooking butter for chicken and eggs.
   const stock = foods.filter((f) => f.atHome).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
-  // To buy: two days' worth of a normal portion cap (100 g for dense foods like honey or chocolate),
+  // To buy: a normal portion cap for each day (50 g a day for dense foods like honey or chocolate),
   // and never so much that home + bought passes the daily limit.
   const catalog = foods.map((f) => ({
     ...f,
     needs: needs(f),
-    maxGrams: Math.max(0, Math.min(twoDays(f), limitLeft(f) - atHome(f))),
+    maxGrams: Math.max(0, Math.min(capForSpan(f), limitLeft(f) - atHome(f))),
   }));
-  return { ...planShopping(required, daily, stock, catalog, butter), foods, required };
+  return { ...planShopping(required, daily, stock, catalog, butter), foods, required, days };
 }
+
+/** How many days ahead to shop for (1–5), remembered and shared by the Shopping page and the Food tab alert. */
+export function useShopDays() {
+  const read = () => Math.min(5, Math.max(1, Number(localStorage.getItem('shop-days')) || 1));
+  const [days, setDays] = useState(read);
+  useEffect(() => {
+    const update = () => setDays(read());
+    window.addEventListener('shopdays', update);
+    return () => window.removeEventListener('shopdays', update);
+  }, []);
+  const choose = (d: number) => {
+    localStorage.setItem('shop-days', String(d));
+    window.dispatchEvent(new Event('shopdays'));
+  };
+  return [days, choose] as const;
+}
+
+/** "tomorrow" or "the next 3 days". */
+export const horizon = (days: number) => (days === 1 ? 'tomorrow' : `the next ${days} days`);
 
 /** The shopping check for today, or undefined while loading. */
 export function useShopping() {
   const { profile } = useAccount();
-  return useLive(async () => (profile ? loadShopping(profile) : null), ['foods', 'food_logs', 'food_log_items'], [profile]);
+  const [days] = useShopDays();
+  return useLive(async () => (profile ? loadShopping(profile, days) : null), ['foods', 'food_logs', 'food_log_items'], [profile, days]);
 }
+
+const DAY_OPTIONS = [1, 2, 3, 4, 5].map((d) => ({ value: d, label: d === 1 ? '1 day' : `${d} days` }));
 
 const MACROS = [
   { key: 'protein', label: 'Protein' },
@@ -62,24 +86,35 @@ const MACROS = [
 /** "What to buy" — the auto-made part of the shopping list. */
 export function SmartList() {
   const plan = useShopping();
+  const [days, setDays] = useShopDays();
   const [open, setOpen] = useState<(typeof MACROS)[number]['key'] | null>(null);
-  if (!plan) return null;
+  const tabs = (
+    <div className="shop-days">
+      <span className="small muted">Shop for the rest of today plus</span>
+      <Segmented options={DAY_OPTIONS} value={days} onChange={(d) => animate('fade', () => setDays(d))} />
+    </div>
+  );
+  if (!plan) return tabs;
   if (!plan.needed) {
     return (
-      <div className="shop-ok">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 12.5l4.5 4.5L19 7.5" />
-        </svg>
-        <div>
-          <strong>You're stocked</strong>
-          <p className="small muted">What's at home covers the rest of today and all of tomorrow.</p>
+      <>
+        {tabs}
+        <div className="shop-ok">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+          <div>
+            <strong>You're stocked</strong>
+            <p className="small muted">What's at home covers the rest of today and {horizon(plan.days)}.</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
   const covered = (grams: number, f: Food): Macros => macrosFor(f, grams);
   return (
     <section className="smart-list">
+      {tabs}
       <div className="shop-alert">
         <span className="shop-alert-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -88,7 +123,7 @@ export function SmartList() {
         </span>
         <div>
           <strong>Time to go shopping</strong>
-          <p className="small">What's at home won't cover the rest of today and tomorrow.</p>
+          <p className="small">What's at home won't cover the rest of today and {horizon(plan.days)}.</p>
         </div>
       </div>
 
@@ -162,7 +197,7 @@ function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan:
   return (
     <div className={`sources ${macro}`}>
       <div className="src-line">
-        <span>Needed for the rest of today + tomorrow</span>
+        <span>Needed for the rest of today + {horizon(plan.days)}</span>
         <strong>{Math.round(plan.required[macro])} g</strong>
       </div>
       <p className="src-group">From what's at home · {sum(home)} g</p>

@@ -425,3 +425,4 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .stock-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .stock-macros > span { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 14px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--tone) 12%, transparent); }
 .stock-macros strong { font-size: 18px; color: var(--tone); font-variant-numeric: tabular-nums; }
+.shop-days { display: flex; flex-direction: column; gap: 8px; }

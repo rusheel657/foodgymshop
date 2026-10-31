@@ -15,7 +15,7 @@ import { MyDietScreen } from '@/screens/diet';
 import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
-import { ShoppingScreen, useShopping } from '@/screens/shop';
+import { horizon, ShoppingScreen, useShopping } from '@/screens/shop';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LOG_TABLES = ['food_logs', 'food_log_items'];
@@ -177,7 +177,7 @@ export function FoodScreen() {
           <span>
             <strong>Time to go shopping</strong>
             <span className="small block">
-              Short on {new Intl.ListFormat('en-GB').format((['protein', 'carbs', 'fat'] as const).filter((k) => shopping.short[k] >= t[k] * 0.1))} by tomorrow. See what to buy
+              Short on {new Intl.ListFormat('en-GB').format((['protein', 'carbs', 'fat'] as const).filter((k) => shopping.short[k] >= t[k] * 0.1))} by {shopping.days === 1 ? 'tomorrow' : `the end of ${horizon(shopping.days)}`}. See what to buy
             </span>
           </span>
         </button>
