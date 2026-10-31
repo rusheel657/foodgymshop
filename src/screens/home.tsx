@@ -82,7 +82,9 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
     remaining,
     home.map((f) => ({
       ...f,
-      maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0)),
+      maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0), f.minGrams),
+      // A pairing with a deleted food is ignored; one with a food that's not at home rules this food out.
+      needs: f.pairsWith.filter((id) => foods.some((x) => x.id === id)),
     })),
     butter,
   ).map((plan) =>

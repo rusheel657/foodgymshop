@@ -147,4 +147,9 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE foods ADD COLUMN daily_max_grams REAL;
   UPDATE foods SET piece_grams = 50 WHERE name LIKE '%egg%';
   `,
+  // 6: smallest portion worth suggesting (grams) and foods this one is only eaten with (JSON array of food ids).
+  `
+  ALTER TABLE foods ADD COLUMN min_grams REAL;
+  ALTER TABLE foods ADD COLUMN pairs_with TEXT NOT NULL DEFAULT '[]';
+  `,
 ];

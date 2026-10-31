@@ -2,8 +2,11 @@
 // Pure maths, no imports, so node:test can run it directly.
 
 type Macros = { kcal: number; protein: number; carbs: number; fat: number };
-/** `pieceGrams`: counted foods (eggs) are suggested in whole pieces. */
-export type SuggestFood = Macros & { id: string; name: string; maxGrams: number; pieceGrams?: number | null };
+/** `pieceGrams`: counted foods (eggs) are suggested in whole pieces. `minGrams`: smallest portion worth eating.
+ *  `needs`: ids of foods this one is only eaten with (yoghurt → honey, fruit, chocolate). */
+export type SuggestFood = Macros & {
+  id: string; name: string; maxGrams: number; pieceGrams?: number | null; minGrams?: number | null; needs?: string[];
+};
 export type Suggestion = { foodId: string; name: string; grams: number };
 
 /** Chicken and eggs are always cooked in butter: grams of butter per gram of chicken/egg. */
@@ -14,9 +17,9 @@ export const cookedInButter = (name: string) => /chicken|egg/i.test(name);
 const W = [(4 * 1.5) ** 2, 4 ** 2, 9 ** 2];
 const vec = (m: Macros) => [m.protein / 100, m.carbs / 100, m.fat / 100];
 
-/** Bounded least squares by coordinate descent: grams x[i] in [0, max[i]] so Σ x·v ≈ target. Returns x and the error. */
-function solve(vs: number[][], max: number[], target: number[]) {
-  const x = vs.map(() => 0);
+/** Bounded least squares by coordinate descent: grams x[i] in [lo[i], hi[i]] so Σ x·v ≈ target. Returns x and the error. */
+function solve(vs: number[][], lo: number[], hi: number[], target: number[]) {
+  const x = [...lo];
   for (let iter = 0; iter < 200; iter++) {
     for (let i = 0; i < vs.length; i++) {
       let num = 0;
@@ -26,14 +29,15 @@ function solve(vs: number[][], max: number[], target: number[]) {
         num += W[k] * vs[i][k] * (target[k] - others);
         den += W[k] * vs[i][k] ** 2;
       }
-      x[i] = den > 0 ? Math.min(max[i], Math.max(0, num / den)) : 0;
+      x[i] = den > 0 ? Math.min(hi[i], Math.max(lo[i], num / den)) : lo[i];
     }
   }
   const err = [0, 1, 2].reduce((e, k) => e + W[k] * (vs.reduce((s, v, j) => s + v[k] * x[j], 0) - target[k]) ** 2, 0);
   return { x, err };
 }
 
-/** Up to `maxFoods` foods (greedy: add whichever lowers the error most), grams rounded to 5 g.
+/** Up to `maxFoods` picks (greedy: add whichever lowers the error most), grams rounded to 5 g or whole pieces.
+ *  Picking a food also picks the foods it `needs`; it's skipped if one of them isn't available.
  *  Chicken/egg rows bring their cooking butter along as an extra row when `butter` is given. */
 export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros & { id: string; name: string }) | null, maxFoods = 4): Suggestion[] {
   const target = [remaining.protein, remaining.carbs, remaining.fat].map((g) => Math.max(0, g));
@@ -43,29 +47,57 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
     const b = vec(butter);
     return v.map((x, k) => x + BUTTER_PER_GRAM * b[k]);
   });
+  const index = new Map(foods.map((f, i) => [f.id, i]));
+  const step = (i: number) => foods[i].pieceGrams || 5;
+  // A food plus everything it must be eaten with (and what those need); null if one isn't available.
+  const groupOf = (i: number) => {
+    const g = [i];
+    for (let k = 0; k < g.length; k++) {
+      for (const id of foods[g[k]].needs ?? []) {
+        const j = index.get(id);
+        if (j === undefined) return null;
+        if (!g.includes(j)) g.push(j);
+      }
+    }
+    return g;
+  };
+  // Lower bounds: the food's smallest portion; a food another one needs must be at least one step (it has to be there).
+  const bounds = (set: number[]) => {
+    const needed = new Set(set.flatMap((i) => (foods[i].needs ?? []).map((id) => index.get(id))));
+    return {
+      lo: set.map((i) => Math.max(foods[i].minGrams ?? 0, needed.has(i) ? step(i) : 0)),
+      hi: set.map((i) => foods[i].maxGrams),
+    };
+  };
 
   let chosen: number[] = [];
-  let best = solve([], [], target);
+  let best = solve([], [], [], target);
   while (chosen.length < maxFoods) {
-    let pick: { i: number; res: ReturnType<typeof solve> } | null = null;
+    let pick: { set: number[]; res: ReturnType<typeof solve> } | null = null;
     for (let i = 0; i < foods.length; i++) {
       if (chosen.includes(i)) continue;
-      const set = [...chosen, i];
-      const res = solve(set.map((j) => eff[j]), set.map((j) => foods[j].maxGrams), target);
-      if (!pick || res.err < pick.res.err) pick = { i, res };
+      const group = groupOf(i);
+      if (!group) continue;
+      const set = [...chosen, ...group.filter((j) => !chosen.includes(j))];
+      const { lo, hi } = bounds(set);
+      if (lo.some((l, k) => l > hi[k])) continue; // e.g. smallest portion is more than what's left of the daily limit
+      const res = solve(set.map((j) => eff[j]), lo, hi, target);
+      if (!pick || res.err < pick.res.err) pick = { set, res };
     }
     // Stop when another food helps by less than 2%.
     if (!pick || pick.res.err > best.err * 0.98) break;
-    chosen = [...chosen, pick.i];
+    chosen = pick.set;
     best = pick.res;
   }
 
+  const { lo, hi } = bounds(chosen);
   const out: Suggestion[] = [];
   let butterGrams = 0;
   chosen.forEach((i, n) => {
-    const step = foods[i].pieceGrams || 5;
-    let grams = Math.round(best.x[n] / step) * step;
-    if (grams > foods[i].maxGrams) grams -= step; // rounding must not break a limit
+    const s = step(i);
+    let grams = Math.round(best.x[n] / s) * s;
+    if (grams > hi[n]) grams -= s; // rounding must not break a limit…
+    if (grams < lo[n]) grams = Math.ceil(lo[n] / s) * s <= hi[n] ? Math.ceil(lo[n] / s) * s : lo[n]; // …or a minimum
     if (grams <= 0) return;
     out.push({ foodId: foods[i].id, name: foods[i].name, grams });
     if (butter && cookedInButter(foods[i].name)) butterGrams += grams * BUTTER_PER_GRAM;
@@ -81,8 +113,11 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
 /** Cap on how much of one food a suggestion may use: twice your usual portion, else 300 g (50 g for dense foods like
  *  honey, chocolate, butter); never more than you have at home (`homeGrams`) or than is left of your daily limit
  *  (`limitLeft`, already minus what you ate today). null = not limited. */
-export function maxGramsFor(kcalPer100: number, usual?: number, homeGrams: number | null = null, limitLeft: number | null = null) {
-  const cap = usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300;
+export function maxGramsFor(
+  kcalPer100: number, usual?: number, homeGrams: number | null = null, limitLeft: number | null = null, minGrams: number | null = null,
+) {
+  // Your own smallest portion beats the automatic cap, never the hard limits.
+  const cap = Math.max(usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300, minGrams ?? 0);
   return Math.max(0, Math.min(cap, homeGrams ?? Infinity, limitLeft ?? Infinity));
 }
 

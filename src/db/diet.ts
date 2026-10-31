@@ -16,6 +16,8 @@ export type Food = Macros & {
   homeGrams: number | null;
   pieceGrams: number | null; // set for foods counted in pieces (eggs, dates)
   dailyMaxGrams: number | null;
+  minGrams: number | null; // smallest portion worth suggesting
+  pairsWith: string[]; // food ids it's only eaten with (yoghurt → honey, fruit, chocolate)
 };
 
 export type MealItem = { foodId: string; grams: number };
@@ -26,6 +28,7 @@ type FoodRow = {
   default_grams: number | null; source: Food['source']; source_id: string | null; barcode: string | null;
   shop_unit: string | null; shop_qty: number; at_home: number; home_grams: number | null;
   piece_grams: number | null; daily_max_grams: number | null;
+  min_grams: number | null; pairs_with: string;
 };
 
 export async function listFoods(): Promise<Food[]> {
@@ -35,6 +38,7 @@ export async function listFoods(): Promise<Food[]> {
     defaultGrams: r.default_grams, source: r.source, sourceId: r.source_id, barcode: r.barcode,
     shopUnit: r.shop_unit, shopQty: r.shop_qty, atHome: !!r.at_home, homeGrams: r.home_grams,
     pieceGrams: r.piece_grams, dailyMaxGrams: r.daily_max_grams,
+    minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with),
   }));
 }
 
@@ -42,15 +46,18 @@ export async function saveFood(userId: string, f: Food) {
   await write(['foods'], () =>
     run(
       `INSERT INTO foods (id, user_id, updated_at, dirty, name, kcal_100g, protein_100g, carbs_100g, fat_100g,
-                          default_grams, source, source_id, barcode, shop_unit, shop_qty, piece_grams, daily_max_grams)
-       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          default_grams, source, source_id, barcode, shop_unit, shop_qty, piece_grams, daily_max_grams,
+                          min_grams, pairs_with)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET
          updated_at = excluded.updated_at, dirty = 1, name = excluded.name,
          kcal_100g = excluded.kcal_100g, protein_100g = excluded.protein_100g, carbs_100g = excluded.carbs_100g,
          fat_100g = excluded.fat_100g, default_grams = excluded.default_grams, shop_unit = excluded.shop_unit,
-         piece_grams = excluded.piece_grams, daily_max_grams = excluded.daily_max_grams`,
+         piece_grams = excluded.piece_grams, daily_max_grams = excluded.daily_max_grams,
+         min_grams = excluded.min_grams, pairs_with = excluded.pairs_with`,
       [f.id, userId, new Date().toISOString(), f.name, f.kcal, f.protein, f.carbs, f.fat, f.defaultGrams,
-        f.source, f.sourceId, f.barcode, f.shopUnit, f.shopQty, f.pieceGrams, f.dailyMaxGrams],
+        f.source, f.sourceId, f.barcode, f.shopUnit, f.shopQty, f.pieceGrams, f.dailyMaxGrams,
+        f.minGrams, JSON.stringify(f.pairsWith)],
     ),
   );
 }

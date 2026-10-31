@@ -16,7 +16,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], ...patch,
 });
 
 export function MyDietScreen() {
@@ -194,13 +194,17 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     shopUnit: food.shopUnit ?? '',
     pieceGrams: str(food.pieceGrams),
     dailyMax: food.dailyMaxGrams === null ? '' : showAmount(food.dailyMaxGrams, food.pieceGrams),
+    min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
   });
+  const [pairs, setPairs] = useState(food.pairsWith);
+  const allFoods = useLive(listFoods, ['foods']);
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
 
   const macros = { kcal: num(d.kcal), protein: num(d.protein), carbs: num(d.carbs), fat: num(d.fat) };
   const grams = d.defaultGrams.trim() === '' ? null : num(d.defaultGrams);
   const piece = d.pieceGrams.trim() === '' ? null : num(d.pieceGrams);
   const limit = d.dailyMax.trim() === '' ? null : toGrams(num(d.dailyMax), piece);
+  const min = d.min.trim() === '' ? null : toGrams(num(d.min), piece);
   const error = !d.name.trim()
     ? 'Give it a name.'
     : !(macros.kcal >= 0 && macros.kcal <= 900)
@@ -215,12 +219,16 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
               ? 'One piece must weigh 1–1000 g.'
               : limit !== null && !(limit > 0 && limit <= 5000)
                 ? 'Daily limit must be more than 0 and at most 5000 g.'
-                : null;
+                : min !== null && !(min > 0 && min <= 5000)
+                  ? 'Smallest portion must be more than 0 and at most 5000 g.'
+                  : min !== null && limit !== null && min > limit
+                    ? 'Smallest portion can’t be more than the daily limit.'
+                    : null;
 
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
-      pieceGrams: piece, dailyMaxGrams: limit,
+      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, pairsWith: pairs,
     });
     nav.pop(popCount);
   }
@@ -253,6 +261,40 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       </Field>
       <Field label="Daily limit" hint="Optional. The most you want in a day; What should I eat? never goes over it.">
         <NumberInput label="Daily limit" value={d.dailyMax} onChange={(dailyMax) => set({ dailyMax })} suffix={piece ? 'pcs a day' : 'g a day'} placeholder="none" />
+      </Field>
+      <Field label="Smallest portion" hint="Optional. What should I eat? either leaves it out or gives you at least this much.">
+        <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece)} placeholder="none" />
+      </Field>
+      <Field label="Only eat with" hint="Optional. What should I eat? only suggests this food together with all of these.">
+        {allFoods && pairs.length > 0 && (
+          <div className="list">
+            {pairs.map((id) => (
+              <div key={id} className="list-row">
+                <span className="list-title">{allFoods.find((f) => f.id === id)?.name ?? 'Deleted food'}</span>
+                <button type="button" className="icon-button" aria-label="Remove pairing" onClick={() => setPairs((p) => p.filter((x) => x !== id))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {allFoods && (
+          <Button
+            title="+ Add food"
+            variant="secondary"
+            onClick={() =>
+              nav.push(
+                <FoodPickerScreen
+                  foods={allFoods.filter((f) => f.id !== food.id && !pairs.includes(f.id))}
+                  onPick={(f) => {
+                    setPairs((p) => [...p, f.id]);
+                    nav.pop();
+                  }}
+                />,
+              )
+            }
+          />
+        )}
       </Field>
       <Field label="Shopping unit" hint="Optional, e.g. pack, kg, dozen.">
         <TextInput label="Shopping unit" value={d.shopUnit} onChange={(shopUnit) => set({ shopUnit })} />

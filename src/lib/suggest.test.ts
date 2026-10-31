@@ -56,6 +56,8 @@ test('caps: twice the usual portion, else 300 g, 50 g for dense foods, never mor
   assert.equal(maxGramsFor(106, undefined, 180), 180); // only 180 g chicken left at home
   assert.equal(maxGramsFor(106, 200, 1000), 400);
   assert.equal(maxGramsFor(106, undefined, 0), 0);
+  assert.equal(maxGramsFor(329, undefined, null, null, 80), 80); // honey with an 80 g smallest portion
+  assert.equal(maxGramsFor(329, undefined, 60, null, 80), 60); // …but never more than is at home
 });
 
 test('options: several different food combinations, closest first, using a variety of foods', () => {
@@ -85,4 +87,28 @@ test('daily limits and counted foods: limit minus what was eaten caps a food; eg
   assert.equal(s[0].grams % 50, 0);
   const capped = suggest({ kcal: 2000, protein: 120, carbs: 0, fat: 5 }, [{ ...chicken, maxGrams: 150 }], null);
   assert.ok(capped[0].grams <= 150, JSON.stringify(capped));
+});
+
+test('pairings: yoghurt only comes with honey, fruit and chocolate; never without them', () => {
+  const yog = { ...f('yog', 'Greek yoghurt', 97, 9, 3.9, 5), needs: ['honey', 'berries', 'choc'] };
+  const berries = f('berries', 'Blueberries', 57, 0.7, 14.5, 0.3);
+  const choc = { ...f('choc', 'Dark chocolate 70%', 580, 9.1, 36, 42, 50), minGrams: 10 };
+  const want = { kcal: 600, protein: 25, carbs: 70, fat: 22 };
+  const s = suggest(want, [yog, honey, berries, choc], null);
+  const ids = s.map((x) => x.foodId);
+  assert.ok(ids.includes('yog'), JSON.stringify(s));
+  for (const id of ['honey', 'berries', 'choc']) assert.ok(ids.includes(id), `${id} missing: ${JSON.stringify(s)}`);
+  assert.ok(s.find((x) => x.foodId === 'choc')!.grams >= 10);
+  // No honey at home → no yoghurt at all.
+  assert.ok(!suggest(want, [yog, berries, choc], null).some((x) => x.foodId === 'yog'));
+  // A pairing rule is one-way: honey can still be suggested alone.
+  assert.ok(suggest({ kcal: 300, protein: 0, carbs: 70, fat: 0 }, [yog, honey], null).some((x) => x.foodId === 'honey'));
+});
+
+test('smallest portion: a food is either left out or at least its minimum', () => {
+  const lambMin = { ...lamb, minGrams: 150 };
+  const s = suggest({ kcal: 300, protein: 25, carbs: 0, fat: 15 }, [lambMin, chicken], null);
+  for (const x of s.filter((x) => x.foodId === 'lamb')) assert.ok(x.grams >= 150, JSON.stringify(s));
+  // Minimum bigger than what's allowed (daily limit left) → the food is skipped.
+  assert.ok(!suggest({ kcal: 900, protein: 60, carbs: 0, fat: 50 }, [{ ...lambMin, maxGrams: 100 }], null).length);
 });
