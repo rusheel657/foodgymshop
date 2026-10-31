@@ -56,15 +56,23 @@ export function onChange(fn: Listener) {
 }
 
 /** Runs fn in one transaction, then tells listeners which tables changed. */
-export async function write(tables: string[], fn: () => Promise<void>) {
-  await conn.beginTransaction();
-  try {
-    await fn();
-    await conn.commitTransaction();
-  } catch (e) {
-    await conn.rollbackTransaction();
-    throw e;
-  }
-  if (web) await sqlite.saveToStore(NAME);
-  listeners.forEach((l) => l(tables));
+let writes: Promise<unknown> = Promise.resolve();
+
+/** Runs `fn` in a transaction, then notifies listeners of `tables`. Writes are queued: SQLite can't nest
+ *  transactions, so two at once (fast taps, typing in a set row) would otherwise fail. Don't call write() inside fn. */
+export function write(tables: string[], fn: () => Promise<void>): Promise<void> {
+  const next = writes.then(async () => {
+    await conn.beginTransaction();
+    try {
+      await fn();
+      await conn.commitTransaction();
+    } catch (e) {
+      await conn.rollbackTransaction();
+      throw e;
+    }
+    if (web) await sqlite.saveToStore(NAME);
+    listeners.forEach((l) => l(tables));
+  });
+  writes = next.catch(() => {}); // one failed write mustn't block the rest
+  return next;
 }

@@ -180,3 +180,49 @@ export function mealTarget(remaining: Macros, dailyKcal: number, size: MealSize)
   const part = (g: number) => Math.max(0, g) * f;
   return { kcal: left * f, protein: part(remaining.protein), carbs: part(remaining.carbs), fat: part(remaining.fat) };
 }
+
+/** Total macros of a plan. */
+export function planMacros(plan: Suggestion[], foods: (Macros & { id: string })[]): Macros {
+  const t = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  for (const p of plan) {
+    const f = foods.find((x) => x.id === p.foodId);
+    if (!f) continue;
+    for (const k of ['kcal', 'protein', 'carbs', 'fat'] as const) t[k] += (f[k] * p.grams) / 100;
+  }
+  return t;
+}
+
+/** Shopping check. Plans `required` (rest of today + tomorrow) from what's at home (`stock`, maxGrams = what you have).
+ *  If a macro ends up more than 10% of a day short, it plans again with home stock plus what could be bought
+ *  (`catalog`, maxGrams = a sensible amount to buy) and `buy` is what that plan uses beyond what's at home,
+ *  so buying the list covers the plan. */
+export function planShopping(
+  required: Macros,
+  daily: Macros,
+  stock: SuggestFood[],
+  catalog: SuggestFood[],
+  butter: (Macros & { id: string; name: string }) | null,
+) {
+  const fromHome = suggest(required, stock, butter, 10);
+  const got = planMacros(fromHome, butter ? [...stock, butter] : stock);
+  const short = {
+    kcal: Math.max(0, required.kcal - got.kcal),
+    protein: Math.max(0, required.protein - got.protein),
+    carbs: Math.max(0, required.carbs - got.carbs),
+    fat: Math.max(0, required.fat - got.fat),
+  };
+  const needed = short.protein > daily.protein * 0.1 || short.carbs > daily.carbs * 0.1 || short.fat > daily.fat * 0.1;
+  if (!needed) return { needed, short, buy: [] as Suggestion[] };
+
+  const home = new Map(stock.map((f) => [f.id, f.maxGrams]));
+  const full = suggest(required, catalog.map((f) => ({ ...f, maxGrams: (home.get(f.id) ?? 0) + f.maxGrams })), butter, 10);
+  const buy = full.flatMap((p) => {
+    const f = catalog.find((x) => x.id === p.foodId);
+    const extra = p.grams - (home.get(p.foodId) ?? 0);
+    // Skip trimmings like 40 g of lamb: not worth buying (under 3% of the calories needed).
+    if (!f || extra <= 0 || (f.kcal * extra) / 100 < required.kcal * 0.03) return [];
+    const step = f.pieceGrams || 5;
+    return [{ ...p, grams: Math.ceil(extra / step) * step }]; // buy whole pieces / round up
+  });
+  return { needed, short, buy };
+}

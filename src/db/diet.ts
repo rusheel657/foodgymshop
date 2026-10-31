@@ -92,6 +92,15 @@ export async function setHomeGrams(id: string, grams: number | null) {
   );
 }
 
+/** Bought `grams` of a food: it's now at home, and its At home amount goes up. */
+export async function restock(id: string, grams: number) {
+  await write(['foods'], () =>
+    run('UPDATE foods SET at_home = 1, home_grams = COALESCE(home_grams, 0) + ?, updated_at = ?, dirty = 1 WHERE id = ?', [
+      grams, new Date().toISOString(), id,
+    ]),
+  );
+}
+
 export async function clearShopList() {
   await write(['foods'], () =>
     run('UPDATE foods SET shop_qty = 0, updated_at = ?, dirty = 1 WHERE shop_qty > 0 AND deleted_at IS NULL', [

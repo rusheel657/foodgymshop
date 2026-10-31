@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useNav } from '@/lib/nav';
 import { applyTheme, getThemePref, isSpecial, SKINS } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
+import { SmartList } from '@/screens/shop';
 import { ThemesScreen } from '@/screens/themes';
 
 export function ShopScreen() {
@@ -18,6 +19,8 @@ export function ShopScreen() {
   if (!foods) return null;
   return (
     <Screen title="Shopping list">
+      <SmartList />
+      <h2 className="buy-title">My list</h2>
       {foods.length === 0 && <EmptyState text="Add foods in My Diet (Food tab) to build your list." />}
       <div className="list">
         {foods.map((f) => (

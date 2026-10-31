@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { maxGramsFor, mealTarget, planError, suggest, suggestOptions, type Suggestion } from './suggest.ts';
+import { maxGramsFor, mealTarget, planError, planMacros, planShopping, suggest, suggestOptions, type Suggestion } from './suggest.ts';
 
 const f = (id: string, name: string, kcal: number, protein: number, carbs: number, fat: number, maxGrams = 300) =>
   ({ id, name, kcal, protein, carbs, fat, maxGrams });
@@ -121,4 +121,32 @@ test('meal sizes: share of the day, capped at what is left, macros in proportion
   assert.equal(Math.round(mealTarget(left, 3000, 'large').kcal), 1350);
   assert.equal(mealTarget({ ...left, kcal: 400 }, 3000, 'large').kcal, 400); // only 400 left
   assert.equal(mealTarget({ ...left, kcal: -50 }, 3000, 'small').kcal, 0);
+});
+
+test('shopping: enough at home → no alert; running low → a list that fills the gap', () => {
+  const daily = { kcal: 2500, protein: 170, carbs: 250, fat: 90 };
+  const required = { kcal: 3700, protein: 250, carbs: 370, fat: 130 }; // rest of today + tomorrow
+  const catalog = [chicken, bread, lamb, honey].map((x) => ({ ...x, maxGrams: 1500 }));
+  const plenty = [chicken, bread, lamb].map((x) => ({ ...x, maxGrams: 2000 }));
+  assert.equal(planShopping(required, daily, plenty, catalog, null).needed, false);
+
+  // Only 200 g chicken and 200 g bread left.
+  const low = [{ ...chicken, maxGrams: 200 }, { ...bread, maxGrams: 200 }];
+  const r = planShopping(required, daily, low, catalog, null);
+  assert.equal(r.needed, true);
+  assert.ok(r.short.protein > 150 && r.short.carbs > 250, JSON.stringify(r.short));
+  assert.ok(r.buy.length > 0);
+  // Buying exactly the list clears the alert.
+  const after = catalog
+    .map((c) => ({ ...c, maxGrams: (low.find((x) => x.id === c.id)?.maxGrams ?? 0) + (r.buy.find((b) => b.foodId === c.id)?.grams ?? 0) }))
+    .filter((c) => c.maxGrams > 0);
+  assert.equal(planShopping(required, daily, after, catalog, null).needed, false, JSON.stringify(r.buy));
+});
+
+test('shopping: a paired food is only bought together with what it needs', () => {
+  const daily = { kcal: 2500, protein: 170, carbs: 250, fat: 90 };
+  const yog = { ...f('yog', 'Greek yoghurt', 97, 9, 3.9, 5), needs: ['honey'], maxGrams: 600 };
+  const catalog = [yog, { ...honey, maxGrams: 100 }, { ...chicken, maxGrams: 600 }, { ...bread, maxGrams: 600 }];
+  const r = planShopping({ kcal: 3700, protein: 250, carbs: 370, fat: 130 }, daily, [], catalog, null);
+  if (r.buy.some((b) => b.foodId === 'yog')) assert.ok(r.buy.some((b) => b.foodId === 'honey'), JSON.stringify(r.buy));
 });

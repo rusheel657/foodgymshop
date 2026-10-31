@@ -15,6 +15,7 @@ import { MyDietScreen } from '@/screens/diet';
 import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
+import { ShoppingScreen, useShopping } from '@/screens/shop';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LOG_TABLES = ['food_logs', 'food_log_items'];
@@ -77,6 +78,7 @@ export function FoodScreen() {
     return { foods: foods.length, home: foods.filter((f) => f.atHome).length, meals: (await listMeals()).length };
   }, ['foods', 'meals']);
   const swipe = useRef<number | null>(null);
+  const shopping = useShopping();
   if (!profile || !logs || !days || !weekDays) return null;
 
   const t = targetsFor(profile);
@@ -164,6 +166,22 @@ export function FoodScreen() {
         <MacroCard label="Carbs" value={eaten.carbs} max={t.carbs} icon={ICONS.carbs} kind="carbs" />
         <MacroCard label="Fat" value={eaten.fat} max={t.fat} icon={ICONS.fat} kind="fat" />
       </div>
+
+      {date === today && shopping?.needed && (
+        <button type="button" className="shop-alert as-button" onClick={() => nav.push(<ShoppingScreen />)}>
+          <span className="shop-alert-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 4h2l2.5 11h11L21 7H6.2M9 20h.01M18 20h.01" />
+            </svg>
+          </span>
+          <span>
+            <strong>Time to go shopping</strong>
+            <span className="small block">
+              Short on {new Intl.ListFormat('en-GB').format((['protein', 'carbs', 'fat'] as const).filter((k) => shopping.short[k] >= t[k] * 0.1))} by tomorrow. See what to buy
+            </span>
+          </span>
+        </button>
+      )}
 
       <section className="stack-sm">
         <h2 className="section-title">{date === today ? "Today's food" : 'Food'}</h2>

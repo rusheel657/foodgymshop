@@ -382,3 +382,27 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .theme-card.special.ice { color: #0b2540; }
 .theme-card.special.ice strong { font-weight: 300; }
 .theme-card.special[aria-pressed='true'] { border-color: #fff; box-shadow: 0 0 0 2px var(--brand), 0 8px 26px rgb(0 0 0 / 0.35); }
+
+/* Smart shopping list */
+.shop-alert { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 0; border-radius: 20px; text-align: left; color: #fff; background: linear-gradient(135deg, #ff8a1f, #ff4d5e); box-shadow: 0 8px 24px rgb(255 100 50 / 0.3); animation: rise 340ms var(--ease) both; }
+.shop-alert.as-button { transition: transform 180ms var(--ease); }
+.shop-alert.as-button:active { transform: scale(0.98); }
+.shop-alert strong { font-size: 17px; }
+.shop-alert .small { opacity: 0.92; }
+.shop-alert-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: rgb(255 255 255 / 0.22); }
+.shop-alert-icon svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.shop-ok { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); }
+.shop-ok svg { flex: none; width: 44px; height: 44px; padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 18%, transparent); fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.smart-list { display: flex; flex-direction: column; gap: 14px; }
+.short-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.short-chip { padding: 6px 12px; border-radius: 12px; font-size: 14px; color: var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent); }
+.buy-title { font-size: 20px; margin-top: 4px; }
+.buy-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; position: relative; }
+.buy-row + .buy-row::before { content: ''; position: absolute; top: 0; left: 52px; right: 0; height: 1px; background: var(--border); }
+.buy-row input { flex: none; width: 24px; height: 24px; accent-color: var(--accent); }
+.buy-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.buy-main .list-title { white-space: normal; font-weight: 600; }
+.buy-covers { display: flex; gap: 8px; }
+.buy-covers > span { color: var(--tone); font-weight: 600; }
+.buy-amount { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.buy-amount strong { font-size: 18px; font-variant-numeric: tabular-nums; }
