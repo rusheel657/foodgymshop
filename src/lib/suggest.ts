@@ -212,7 +212,7 @@ export function planShopping(
     fat: Math.max(0, required.fat - got.fat),
   };
   const needed = short.protein > daily.protein * 0.1 || short.carbs > daily.carbs * 0.1 || short.fat > daily.fat * 0.1;
-  if (!needed) return { needed, short, buy: [] as Suggestion[] };
+  if (!needed) return { needed, short, fromHome, buy: [] as Suggestion[] };
 
   const home = new Map(stock.map((f) => [f.id, f.maxGrams]));
   const full = suggest(required, catalog.map((f) => ({ ...f, maxGrams: (home.get(f.id) ?? 0) + f.maxGrams })), butter, 10);
@@ -224,5 +224,5 @@ export function planShopping(
     const step = f.pieceGrams || 5;
     return [{ ...p, grams: Math.ceil(extra / step) * step }]; // buy whole pieces / round up
   });
-  return { needed, short, buy };
+  return { needed, short, fromHome, buy };
 }

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { Page } from '@/components/ui';
 import { listFoods, restock, type Food } from '@/db/diet';
 import { listLogs } from '@/db/log';
@@ -29,17 +31,20 @@ async function loadShopping(profile: Profile) {
   const limitLeft = (f: Food) => (f.dailyMaxGrams === null ? Infinity : pos(f.dailyMaxGrams * 2 - (eaten.get(f.id) ?? 0)));
   const needs = (f: Food) => f.pairsWith.filter((id) => foods.some((x) => x.id === id));
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
-  // At home: up to what you have ("any" = plenty).
-  const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? 5000, limitLeft(f)) : 0);
-  const stock = foods.filter((f) => f.atHome && !isButter(f)).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
+  // At home: up to what you have. "Any" has no amount, so it counts as two days of a normal portion cap
+  // (otherwise 500 g of honey would look like a plan).
+  const twoDays = (f: Food) => 2 * maxGramsFor(f.kcal, undefined, null, null, f.minGrams);
+  const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? twoDays(f), limitLeft(f)) : 0);
+  // Butter counts as a food too (its fat is real food at home), besides being cooking butter for chicken and eggs.
+  const stock = foods.filter((f) => f.atHome).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
   // To buy: two days' worth of a normal portion cap (100 g for dense foods like honey or chocolate),
   // and never so much that home + bought passes the daily limit.
-  const catalog = foods.filter((f) => !isButter(f)).map((f) => ({
+  const catalog = foods.map((f) => ({
     ...f,
     needs: needs(f),
-    maxGrams: Math.max(0, Math.min(2 * maxGramsFor(f.kcal, undefined, null, null, f.minGrams), limitLeft(f) - atHome(f))),
+    maxGrams: Math.max(0, Math.min(twoDays(f), limitLeft(f) - atHome(f))),
   }));
-  return { ...planShopping(required, daily, stock, catalog, butter), foods };
+  return { ...planShopping(required, daily, stock, catalog, butter), foods, required };
 }
 
 /** The shopping check for today, or undefined while loading. */
@@ -57,6 +62,7 @@ const MACROS = [
 /** "What to buy" — the auto-made part of the shopping list. */
 export function SmartList() {
   const plan = useShopping();
+  const [open, setOpen] = useState<(typeof MACROS)[number]['key'] | null>(null);
   if (!plan) return null;
   if (!plan.needed) {
     return (
@@ -88,11 +94,17 @@ export function SmartList() {
 
       <div className="short-chips">
         {MACROS.filter((m) => plan.short[m.key] >= 1).map((m) => (
-          <span key={m.key} className={`short-chip ${m.key}`}>
+          <button
+            key={m.key}
+            type="button"
+            className={`short-chip ${m.key}`}
+            aria-expanded={open === m.key}
+            onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
             {m.label} <strong>−{Math.round(plan.short[m.key])} g</strong>
-          </span>
+          </button>
         ))}
       </div>
+      {open && <Sources macro={open} plan={plan} />}
 
       <h2 className="buy-title">What to buy</h2>
       <div className="list buy-list">
@@ -128,5 +140,62 @@ export function ShoppingScreen() {
     <Page title="Shopping">
       <SmartList />
     </Page>
+  );
+}
+
+type Plan = NonNullable<ReturnType<typeof useShopping>>;
+
+/** Where a macro comes from: what's needed, what home stock covers (food by food), and what the list adds. */
+function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan: Plan }) {
+  const label = MACROS.find((m) => m.key === macro)!.label.toLowerCase();
+  const rows = (items: { foodId: string; grams: number }[]) =>
+    items
+      .map((p) => {
+        const f = plan.foods.find((x) => x.id === p.foodId)!;
+        return { f, grams: p.grams, g: macrosFor(f, p.grams)[macro] };
+      })
+      .filter((r) => r.g >= 0.5)
+      .sort((a, b) => b.g - a.g);
+  const home = rows(plan.fromHome);
+  const buy = rows(plan.buy);
+  const sum = (r: { g: number }[]) => Math.round(r.reduce((s, x) => s + x.g, 0));
+  return (
+    <div className={`sources ${macro}`}>
+      <div className="src-line">
+        <span>Needed for the rest of today + tomorrow</span>
+        <strong>{Math.round(plan.required[macro])} g</strong>
+      </div>
+      <p className="src-group">From what's at home · {sum(home)} g</p>
+      {home.length === 0 && <p className="small muted">Nothing at home adds {label}.</p>}
+      {home.map(({ f, grams, g }) => (
+        <div key={f.id} className="src-row">
+          <span className="grow">
+            {f.name}
+            <span className="small muted">
+              uses {amountLabel(grams, f.pieceGrams)}
+              {f.homeGrams !== null ? ` of ${amountLabel(f.homeGrams, f.pieceGrams)} you have` : ''}
+            </span>
+          </span>
+          <strong>{Math.round(g)} g</strong>
+        </div>
+      ))}
+      <div className="src-line short">
+        <span>Short</span>
+        <strong>−{Math.round(plan.short[macro])} g</strong>
+      </div>
+      {buy.length > 0 && <p className="src-group">The list adds · {sum(buy)} g</p>}
+      {buy.map(({ f, grams, g }) => (
+        <div key={f.id} className="src-row">
+          <span className="grow">
+            {f.name}
+            <span className="small muted">buy {amountLabel(grams, f.pieceGrams)}</span>
+          </span>
+          <strong>+{Math.round(g)} g</strong>
+        </div>
+      ))}
+      <p className="small muted">
+        Home stock isn't all used when other limits apply (daily limits, smallest portions, pairings) or when using more would overshoot other macros.
+      </p>
+    </div>
   );
 }

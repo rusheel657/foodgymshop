@@ -150,3 +150,12 @@ test('shopping: a paired food is only bought together with what it needs', () =>
   const r = planShopping({ kcal: 3700, protein: 250, carbs: 370, fat: 130 }, daily, [], catalog, null);
   if (r.buy.some((b) => b.foodId === 'yog')) assert.ok(r.buy.some((b) => b.foodId === 'honey'), JSON.stringify(r.buy));
 });
+
+test('shopping: butter at home counts as fat (it was only treated as cooking butter before)', () => {
+  const daily = { kcal: 2500, protein: 170, carbs: 250, fat: 90 };
+  const required = { kcal: 3700, protein: 250, carbs: 370, fat: 130 };
+  const stock = [{ ...chicken, maxGrams: 2000 }, { ...bread, maxGrams: 2000 }];
+  const catalog = [chicken, bread, butter].map((x) => ({ ...x, maxGrams: 1500 }));
+  assert.equal(planShopping(required, daily, stock, catalog, null).needed, true); // lean food only → short on fat
+  assert.equal(planShopping(required, daily, [...stock, { ...butter, maxGrams: 700 }], catalog, butter).needed, false);
+});

@@ -22,6 +22,7 @@ export function AtHomeScreen() {
   return (
     <Page title="At home">
       <p className="muted">Tick what's in your kitchen and how much is left. Suggestions only use these, and never more than you have.</p>
+      <StockTotals foods={foods} />
       {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
       <div className="list">
         {foods.map((f) => (
@@ -29,6 +30,27 @@ export function AtHomeScreen() {
         ))}
       </div>
     </Page>
+  );
+}
+
+/** What's in the kitchen in total; foods set to "any" have no amount to add up. */
+function StockTotals({ foods }: { foods: Food[] }) {
+  const counted = foods.filter((f) => f.atHome && f.homeGrams !== null);
+  const anyCount = foods.filter((f) => f.atHome && f.homeGrams === null).length;
+  const t = sumMacros(counted.map((f) => macrosFor(f, f.homeGrams!)));
+  return (
+    <div className="stock-totals">
+      <div className="stock-kcal">
+        <strong>{Math.round(t.kcal).toLocaleString()}</strong>
+        <span className="small muted">kcal at home</span>
+      </div>
+      <div className="stock-macros">
+        <span className="protein"><strong>{Math.round(t.protein)} g</strong>protein</span>
+        <span className="carbs"><strong>{Math.round(t.carbs)} g</strong>carbs</span>
+        <span className="fat"><strong>{Math.round(t.fat)} g</strong>fat</span>
+      </div>
+      {anyCount > 0 && <p className="small muted">Plus {anyCount === 1 ? '1 food' : `${anyCount} foods`} set to "any", not counted. Enter an amount to include it.</p>}
+    </div>
   );
 }
 
@@ -90,7 +112,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
   // Grams of each food already eaten that day, so daily limits count it.
   const eaten = new Map<string, number>();
   for (const i of logs.flatMap((l) => l.items)) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
-  const home = foods.filter((f) => f.atHome && !isButter(f));
+  const home = foods.filter((f) => f.atHome); // butter included: it's a fat source too (capped like other dense foods)
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   const options = suggestOptions(
