@@ -62,9 +62,18 @@ export async function analyzeMeal(body: {
 }): Promise<AiItem[]> {
   const { data, error } = await supabase.functions.invoke<{ items: AiItem[] }>('analyze-meal', { body });
   if (error) {
-    // Non-2xx: the function's { error } message is in the response body.
-    const message = await (error.context as Response | undefined)?.json?.().then((j) => j.error).catch(() => null);
-    throw new Error(message ?? `Photo analysis failed: ${error.message}`);
+    // Non-2xx: the function's { error } is in the body; gateway failures (timeout, worker limit) say { code, message } or plain text.
+    const res = error.context as Response | undefined;
+    const text = await res?.text?.().catch(() => '');
+    let detail = text?.slice(0, 120) || '';
+    try {
+      const j = JSON.parse(text ?? '');
+      if (j.error) throw new Error(j.error);
+      detail = j.message ?? j.code ?? detail;
+    } catch (e) {
+      if (!(e instanceof SyntaxError)) throw e;
+    }
+    throw new Error(`Photo analysis failed (${res?.status ?? '?'})${detail ? `: ${detail}` : ''}. Try again or quick-add.`);
   }
   return data?.items ?? [];
 }
