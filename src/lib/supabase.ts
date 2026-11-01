@@ -52,8 +52,10 @@ export async function searchUsda(query: string): Promise<UsdaFood[]> {
   return data ?? [];
 }
 
-/** Photo (base64 JPEG) + My Diet names → matched items, via the analyze-meal Edge Function (Gemini). */
+/** Photo (base64 JPEG) + My Diet names → matched items, via the analyze-meal Edge Function (Gemini).
+ *  `kind: 'groceries'` reads a shopping haul instead of a plate: whole amounts bought, no meals. */
 export async function analyzeMeal(body: {
+  kind?: 'meal' | 'groceries';
   image: string;
   foods: { id: string; name: string; usualGrams?: number }[];
   meals: { id: string; name: string; items: { name: string; grams: number }[] }[];

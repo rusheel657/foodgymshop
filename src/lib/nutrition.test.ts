@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams, amountLabel, showAmount, toGrams, lastsFor } from './nutrition.ts';
+import { formatMacros, fromOffSearch, fromOpenFoodFacts, macrosFor, sumMacros, toLogItems, diffCorrections, correctionNote, usualGrams, amountLabel, showAmount, toGrams, lastsFor, per100From } from './nutrition.ts';
 
 test('macrosFor scales per-100 g values', () => {
   assert.deepEqual(macrosFor({ kcal: 282, protein: 16.6, carbs: 0, fat: 23.4 }, 500), {
@@ -124,4 +124,11 @@ test('how long stock lasts', () => {
   assert.equal(lastsFor(725, 115), '6 days');
   assert.equal(lastsFor(176, 176), '1 day');
   assert.equal(lastsFor(90, 176), 'under a day');
+});
+
+test('grocery estimate for a whole pack → per 100 g, clamped to the food form limits', () => {
+  const item = { mealId: null, foodId: null, name: 'Oats', grams: 1000, kcal: 3790, protein: 130, carbs: 600, fat: 70 };
+  assert.deepEqual(per100From(item), { kcal: 379, protein: 13, carbs: 60, fat: 7 });
+  assert.equal(per100From({ ...item, kcal: null }), null);
+  assert.equal(per100From({ ...item, grams: 10, kcal: 100 })?.kcal, 900);
 });

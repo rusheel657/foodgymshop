@@ -117,6 +117,8 @@ main.food ~ .tabbar { right: 96px; }
 .list-row svg { flex: none; color: var(--muted); }
 .list-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-row .list-title { color: var(--muted); }
+.off-row > .grow { display: flex; flex-direction: column; min-width: 0; flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; opacity: 0.6; }
+.off-row > .button.small { flex: none; width: auto; height: 40px; padding: 0 16px; }
 .shop-row.active .list-title { color: var(--text); font-weight: 600; }
 .stepper { display: flex; align-items: center; gap: 4px; flex: none; }
 .stepper span { min-width: 28px; text-align: center; font-variant-numeric: tabular-nums; }

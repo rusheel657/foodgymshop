@@ -4,7 +4,8 @@ export type Ref = { id: string; name: string };
 export type FoodRef = Ref & { usualGrams?: number };
 export type MealRef = Ref & { items: { name: string; grams: number }[] };
 /** `notes`: the user's recent corrections of earlier analyses; `rules`: standing facts about how they cook. One sentence each. */
-export type Request = { image: string; foods: FoodRef[]; meals: MealRef[]; notes: string[]; rules: string[] };
+/** `kind`: a plate of food (default), or groceries laid out after shopping (total amounts bought). */
+export type Request = { kind: 'meal' | 'groceries'; image: string; foods: FoodRef[]; meals: MealRef[]; notes: string[]; rules: string[] };
 
 /** What the app gets back. Ids are the app's own ids; macros are only set for foods not in My Diet. */
 export type AiItem = {
@@ -38,13 +39,27 @@ export function parseRequest(body: unknown): Request | string {
   const rules = b.rules ?? [];
   if (!sentences(notes)) return 'Bad notes';
   if (!sentences(rules)) return 'Bad rules';
-  return { image: b.image, foods: b.foods, meals: b.meals, notes, rules };
+  return { kind: b.kind === 'groceries' ? 'groceries' : 'meal', image: b.image, foods: b.foods, meals: b.meals, notes, rules };
 }
 
 /** Prompt text. Foods/meals get short ids (f1, m1) so the model can't mangle UUIDs. */
-export function buildPrompt({ foods, meals, notes, rules }: Request) {
+export function buildPrompt({ kind, foods, meals, notes, rules }: Request) {
   const foodLines =
     foods.map((f, i) => `f${i + 1}: ${f.name}${f.usualGrams ? ` (usually ${f.usualGrams} g)` : ''}`).join('\n') || '(none)';
+  if (kind === 'groceries') {
+    return `You are a kitchen inventory assistant. This photo shows groceries the user just bought, laid out together. List every food and drink in it.
+
+The user's saved FOODS:
+${foodLines}
+
+Rules:
+- One item per kind of food. Several packs of the same food become one item with the amounts added up.
+- grams = the total amount of that food in the photo. Read the weight printed on packs where you can ("1kg" = 1000, "500g" = 500, 1 ml = 1 g). For loose or counted items, count them and use typical weights (an egg is 50 g, a banana 120 g without peel, a dozen eggs 600 g).
+- If it is one of the saved foods, set food_id and leave the macros null.
+- Otherwise set food_id null, give it a short plain name (e.g. "Greek yoghurt"), and estimate kcal, protein, carbs and fat (grams) for the WHOLE amount.
+- Leave meal_id null. Ignore things that aren't food (bags, receipts, cleaning products) and drinks with no calories.
+- Use the ids exactly as given (e.g. "f5"). If there is no food, return an empty list.`;
+  }
   const mealLines =
     meals.map((m, i) => `m${i + 1}: ${m.name} = ${m.items.map((x) => `${x.grams} g ${x.name}`).join(' + ')}`).join('\n') ||
     '(none)';
@@ -117,14 +132,14 @@ export function parseGemini(text: string, req: Request): AiItem[] {
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
   return items.flatMap((raw): AiItem[] => {
     const r = raw as Record<string, unknown>;
-    const meal = pick(req.meals, 'm', r.meal_id);
+    const meal = req.kind === 'groceries' ? null : pick(req.meals, 'm', r.meal_id);
     const food = meal ? null : pick(req.foods, 'f', r.food_id);
     const grams = n(r.grams) ?? 0;
     const item: AiItem = {
       mealId: meal?.id ?? null,
       foodId: food?.id ?? null,
       name: meal?.name ?? food?.name ?? (typeof r.name === 'string' ? r.name.slice(0, 100) : ''),
-      grams: Math.min(grams, 5000),
+      grams: Math.min(grams, req.kind === 'groceries' ? 20000 : 5000),
       kcal: n(r.kcal), protein: n(r.protein), carbs: n(r.carbs), fat: n(r.fat),
     };
     if (meal) return [item];

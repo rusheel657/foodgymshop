@@ -18,6 +18,7 @@ export type Food = Macros & {
   dailyMaxGrams: number | null;
   minGrams: number | null; // smallest portion worth suggesting
   pairsWith: string[]; // food ids it's only eaten with (yoghurt → honey, fruit, chocolate)
+  disabled: boolean; // switched off in My Diet; past entries keep their own copy of its macros either way
 };
 
 export type MealItem = { foodId: string; grams: number };
@@ -28,17 +29,20 @@ type FoodRow = {
   default_grams: number | null; source: Food['source']; source_id: string | null; barcode: string | null;
   shop_unit: string | null; shop_qty: number; at_home: number; home_grams: number | null;
   piece_grams: number | null; daily_max_grams: number | null;
-  min_grams: number | null; pairs_with: string;
+  min_grams: number | null; pairs_with: string; disabled: number;
 };
 
-export async function listFoods(): Promise<Food[]> {
-  const rows = await all<FoodRow>('SELECT * FROM foods WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE');
+/** Foods in use; `withDisabled` also returns the ones switched off (My Diet, editing old entries). */
+export async function listFoods(withDisabled = false): Promise<Food[]> {
+  const rows = await all<FoodRow>(
+    `SELECT * FROM foods WHERE deleted_at IS NULL ${withDisabled ? '' : 'AND disabled = 0'} ORDER BY name COLLATE NOCASE`,
+  );
   return rows.map((r) => ({
     id: r.id, name: r.name, kcal: r.kcal_100g, protein: r.protein_100g, carbs: r.carbs_100g, fat: r.fat_100g,
     defaultGrams: r.default_grams, source: r.source, sourceId: r.source_id, barcode: r.barcode,
     shopUnit: r.shop_unit, shopQty: r.shop_qty, atHome: !!r.at_home, homeGrams: r.home_grams,
     pieceGrams: r.piece_grams, dailyMaxGrams: r.daily_max_grams,
-    minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with),
+    minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with), disabled: !!r.disabled,
   }));
 }
 
@@ -72,6 +76,12 @@ export async function deleteFood(id: string) {
       [now, now, id],
     );
   });
+}
+
+export async function setDisabled(id: string, disabled: boolean) {
+  await write(['foods'], () =>
+    run('UPDATE foods SET disabled = ?, updated_at = ?, dirty = 1 WHERE id = ?', [disabled ? 1 : 0, new Date().toISOString(), id]),
+  );
 }
 
 export async function setShopQty(id: string, qty: number) {
@@ -130,12 +140,12 @@ export async function listStockChanges(limit = 80): Promise<StockChange[]> {
   return rows.map((r) => ({ id: r.id, foodId: r.food_id, reason: r.reason, before: r.before_grams, after: r.after_grams, at: r.changed_at }));
 }
 
-/** Bought `grams` of a food: it's now at home, and its At home amount goes up. */
+/** Bought `grams` of a food: it's now at home (and back in use if it was switched off), and its At home amount goes up. */
 export async function restock(id: string, grams: number) {
   const now = new Date().toISOString();
   await write(['foods', 'stock_changes'], async () => {
     const before = await homeGramsOf(id);
-    await run('UPDATE foods SET at_home = 1, home_grams = COALESCE(home_grams, 0) + ?, updated_at = ?, dirty = 1 WHERE id = ?', [grams, now, id]);
+    await run('UPDATE foods SET at_home = 1, disabled = 0, home_grams = COALESCE(home_grams, 0) + ?, updated_at = ?, dirty = 1 WHERE id = ?', [grams, now, id]);
     await noteStockChange(id, 'bought', before, (before ?? 0) + grams, now);
   });
 }

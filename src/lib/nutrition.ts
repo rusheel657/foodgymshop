@@ -71,6 +71,14 @@ export type AiItem = {
 type DietFood = Macros & { id: string; name: string };
 type DietMeal = { id: string; items: { foodId: string; grams: number }[] };
 
+/** AI totals for a whole pack → per 100 g, kept inside what the food form allows. */
+export function per100From(a: AiItem): Macros | null {
+  if (a.kcal === null || a.protein === null || a.carbs === null || a.fat === null || a.grams <= 0) return null;
+  const k = 100 / a.grams;
+  const r = (v: number, max: number) => Math.min(max, Math.round(v * k * 10) / 10);
+  return { kcal: r(a.kcal, 900), protein: r(a.protein, 100), carbs: r(a.carbs, 100), fat: r(a.fat, 100) };
+}
+
 /** analyze-meal items → log rows. Saved meals/foods use local macros (verified); the rest use the AI estimate. */
 export function toLogItems(ai: AiItem[], foods: DietFood[], meals: DietMeal[]): LogItem[] {
   const fromFood = (f: DietFood, grams: number): LogItem => ({

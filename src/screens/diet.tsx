@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, TextInput } from '@/components/ui';
 import {
-  deleteFood, deleteMeal, listFoods, listMeals, mealMacros, saveFood, saveMeal, type Food, type Meal,
+  deleteFood, deleteMeal, listFoods, listMeals, mealMacros, saveFood, saveMeal, setDisabled, type Food, type Meal,
 } from '@/db/diet';
 import { useAccount } from '@/lib/account';
 import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
@@ -16,21 +16,22 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], disabled: false, ...patch,
 });
 
 export function MyDietScreen() {
   const nav = useNav();
-  const foods = useLive(listFoods, ['foods']);
+  const foods = useLive(() => listFoods(true), ['foods']);
   const meals = useLive(listMeals, ['meals', 'meal_items']);
   if (!foods || !meals) return null;
+  const off = foods.filter((f) => f.disabled);
   return (
     <Page title="My Diet">
       <section className="stack-sm">
         <SectionHead title="Foods" action="+ Add" onAction={() => nav.push(<AddFoodScreen />)} />
         {foods.length === 0 && <EmptyState text="Add the foods you eat regularly." />}
         <div className="list">
-          {foods.map((f) => (
+          {foods.filter((f) => !f.disabled).map((f) => (
             <ListRow
               key={f.id}
               title={f.name}
@@ -40,6 +41,25 @@ export function MyDietScreen() {
           ))}
         </div>
       </section>
+      {off.length > 0 && (
+        <section className="stack-sm">
+          <SectionHead title="Switched off" />
+          <p className="small muted">Kept for your past entries, but left out of suggestions, shopping, At home and photo matching.</p>
+          <div className="list">
+            {off.map((f) => (
+              <div key={f.id} className="list-row off-row">
+                <button type="button" className="grow" onClick={() => nav.push(<FoodFormScreen food={f} />)}>
+                  <span className="list-title">{f.name}</span>
+                  <span className="small muted">100 g · {formatMacros(f)}</span>
+                </button>
+                <button type="button" className="button secondary small" onClick={() => setDisabled(f.id, false)}>
+                  Turn on
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="stack-sm">
         <SectionHead
           title="Meals"
@@ -197,7 +217,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
-  const allFoods = useLive(listFoods, ['foods']);
+  const allFoods = useLive(() => listFoods(true), ['foods']);
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
 
   const macros = { kcal: num(d.kcal), protein: num(d.protein), carbs: num(d.carbs), fat: num(d.fat) };
@@ -231,6 +251,11 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, pairsWith: pairs,
     });
     nav.pop(popCount);
+  }
+
+  async function toggle() {
+    await setDisabled(food.id, !food.disabled);
+    nav.pop();
   }
 
   async function remove() {
@@ -285,7 +310,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
             onClick={() =>
               nav.push(
                 <FoodPickerScreen
-                  foods={allFoods.filter((f) => f.id !== food.id && !pairs.includes(f.id))}
+                  foods={allFoods.filter((f) => !f.disabled && f.id !== food.id && !pairs.includes(f.id))}
                   onPick={(f) => {
                     setPairs((p) => [...p, f.id]);
                     nav.pop();
@@ -300,18 +325,24 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
         <TextInput label="Shopping unit" value={d.shopUnit} onChange={(shopUnit) => set({ shopUnit })} />
       </Field>
       <p className="small muted">
-        {SOURCE[food.source]}
+        {food.sourceId === 'ai-groceries' ? 'AI estimate from a grocery photo; check it against the label' : SOURCE[food.source]}
         {food.barcode && ` · barcode ${food.barcode}`}
       </p>
       {error && <p className="small muted">{error}</p>}
       <Button title="Save" onClick={save} disabled={!!error} />
-      {!isNew && <Button title="Delete food" variant="secondary" onClick={remove} />}
+      {!isNew && (
+        <>
+          <p className="small muted">Changes apply from now on. Entries you've already logged keep the amounts and macros they were logged with.</p>
+          <Button title={food.disabled ? 'Turn on' : 'Switch off'} variant="secondary" onClick={toggle} />
+          <Button title="Delete food" variant="secondary" onClick={remove} />
+        </>
+      )}
     </Page>
   );
 }
 
 function MealFormScreen(props: { meal: Meal; isNew?: boolean }) {
-  const foods = useLive(listFoods, ['foods']);
+  const foods = useLive(() => listFoods(true), ['foods']); // switched-off foods stay in their meals
   // Foods first: counted foods (eggs) start out shown in pieces.
   return foods ? <MealForm {...props} foods={foods} /> : null;
 }
@@ -375,7 +406,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
           onAction={() =>
             nav.push(
               <FoodPickerScreen
-                foods={foods}
+                foods={foods.filter((f) => !f.disabled)}
                 onPick={(f) => {
                   setItems((list) => [...list, { foodId: f.id, amount: showAmount(f.defaultGrams ?? f.pieceGrams ?? 100, f.pieceGrams) }]);
                   nav.pop();

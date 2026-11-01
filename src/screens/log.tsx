@@ -44,13 +44,13 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
     (async () => {
       try {
         const [foods, meals, image, usual, corrections] = await Promise.all([
-          listFoods(), listMeals(), photoBase64(photo), usualPortions(), recentCorrections(),
+          listFoods(true), listMeals(), photoBase64(photo), usualPortions(), recentCorrections(),
         ]);
         const ai = await analyzeMeal({
           image,
-          foods: foods.map((f) => ({ id: f.id, name: f.name, usualGrams: usual.get(f.id) })),
+          foods: foods.filter((f) => !f.disabled).map((f) => ({ id: f.id, name: f.name, usualGrams: usual.get(f.id) })),
           notes: corrections.map(correctionNote),
-          rules: butterRule(foods),
+          rules: butterRule(foods.filter((f) => !f.disabled)),
           meals: meals.map((m) => ({
             id: m.id,
             name: m.name,
@@ -102,7 +102,7 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
 /** Confirm a new entry (from a photo or quick-add) or edit a logged one. */
 /** `aiItems`: the photo analysis as returned, so corrections can be remembered (see diffCorrections). */
 export function LogFormScreen(props: { log: FoodLog; isNew?: boolean; notice?: string; aiItems?: LogItem[] }) {
-  const foods = useLive(listFoods, ['foods']);
+  const foods = useLive(() => listFoods(true), ['foods']); // old entries may use foods switched off since
   const meals = useLive(listMeals, ['meals', 'meal_items']);
   // Foods first: counted foods (eggs) start out shown in pieces.
   return foods && meals ? <LogForm {...props} foods={foods} meals={meals} /> : null;
@@ -150,7 +150,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
           title="Items"
           action="+ Food"
           onAction={() =>
-            nav.push(<FoodPickerScreen foods={foods} onPick={(f) => { add([fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100)]); nav.pop(); }} />)
+            nav.push(<FoodPickerScreen foods={foods.filter((f) => !f.disabled)} onPick={(f) => { add([fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100)]); nav.pop(); }} />)
           }
         />
         {rows.length === 0 && <EmptyState text="No items yet." />}

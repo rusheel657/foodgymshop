@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { buildPrompt, parseGemini, parseRequest, type Request } from './parse.ts';
 
 const req: Request = {
+  kind: 'meal',
   image: 'abc',
   foods: [{ id: 'uuid-lamb', name: 'Lamb mince', usualGrams: 250 }, { id: 'uuid-egg', name: 'Eggs' }],
   meals: [{ id: 'uuid-bowl', name: 'Lamb bowl', items: [{ name: 'Lamb mince', grams: 500 }, { name: 'Eggs', grams: 200 }] }],
@@ -57,4 +58,24 @@ test('request validation', () => {
   assert.deepEqual(parseRequest(req), req);
   assert.equal(parseRequest({ ...req, rules: 'x' }), 'Bad rules');
   assert.deepEqual(parseRequest({ ...req, notes: undefined, rules: undefined }), { ...req, notes: [], rules: [] }); // older app versions
+});
+
+test('groceries: own prompt, no meals, whole amounts up to 20 kg', () => {
+  const g: Request = { ...req, kind: 'groceries' };
+  assert.equal((parseRequest({ ...req, kind: 'groceries' }) as Request).kind, 'groceries');
+  assert.equal((parseRequest({ ...req, kind: 'other' }) as Request).kind, 'meal');
+  const p = buildPrompt(g);
+  assert.match(p, /groceries/);
+  assert.match(p, /f1: Lamb mince/);
+  assert.doesNotMatch(p, /MEALS/);
+  const text = JSON.stringify({
+    items: [
+      { meal_id: 'm1', food_id: 'f1', name: 'lamb', grams: 1500 }, // meal ids are ignored for groceries
+      { meal_id: null, food_id: null, name: 'Oats', grams: 30000, kcal: 3800, protein: 130, carbs: 600, fat: 70 },
+    ],
+  });
+  assert.deepEqual(parseGemini(text, g), [
+    { mealId: null, foodId: 'uuid-lamb', name: 'Lamb mince', grams: 1500, kcal: null, protein: null, carbs: null, fat: null },
+    { mealId: null, foodId: null, name: 'Oats', grams: 20000, kcal: 3800, protein: 130, carbs: 600, fat: 70 },
+  ]);
 });

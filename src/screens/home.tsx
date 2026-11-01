@@ -8,18 +8,32 @@ import { addDays, ymd } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
+import { addPhoto, canUseCamera } from '@/lib/photos';
 import { amountLabel, formatMacros, lastsFor, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
 import { maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
+import { GroceryScanScreen } from '@/screens/groceries';
 import { LogFormScreen, newLog } from '@/screens/log';
 
 const isButter = (f: Food) => /butter/i.test(f.name);
 
 /** Tick the My Diet foods you have in the kitchen right now. */
 export function AtHomeScreen() {
-  const foods = useLive(listFoods, ['foods']);
+  const nav = useNav();
+  const all = useLive(() => listFoods(true), ['foods']); // Changes also names foods switched off since
   const [tab, setTab] = useState<'stock' | 'changes'>('stock');
-  if (!foods) return null;
+  if (!all) return null;
+  const foods = all.filter((f) => !f.disabled);
+
+  async function scan(from: 'camera' | 'gallery') {
+    if (!navigator.onLine) return alert('No connection. Add amounts by hand instead.');
+    try {
+      const uri = await addPhoto(from);
+      if (uri) nav.push(<GroceryScanScreen photo={uri} />);
+    } catch (e) {
+      if (!/cancel/i.test((e as Error).message)) alert((e as Error).message);
+    }
+  }
   return (
     <Page title="At home">
       <Segmented
@@ -28,10 +42,14 @@ export function AtHomeScreen() {
         onChange={(t) => animate('fade', () => setTab(t))}
       />
       {tab === 'changes' ? (
-        <StockChanges foods={foods} />
+        <StockChanges foods={all} />
       ) : (
         <>
           <p className="muted">Tick what's in your kitchen and how much is left. Suggestions only use these, and never more than you have.</p>
+          <div className="row">
+            {canUseCamera && <Button title="Photo of groceries" onClick={() => scan('camera')} />}
+            <Button title={canUseCamera ? 'From gallery' : 'Groceries photo'} variant="secondary" onClick={() => scan('gallery')} />
+          </div>
           <StockTotals foods={foods} />
           {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
           <div className="list">

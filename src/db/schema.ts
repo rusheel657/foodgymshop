@@ -163,4 +163,6 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX stock_changes_at ON stock_changes (changed_at);
   `,
+  // 8: foods switched off in My Diet (kept, but left out of suggestions, shopping, At home and photo matching).
+  `ALTER TABLE foods ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;`,
 ];
