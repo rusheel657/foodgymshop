@@ -5,6 +5,7 @@ import { listFoods, restock, type Food } from '@/db/diet';
 import { listLogs } from '@/db/log';
 import { dayTargets } from '@/db/activity';
 import { localDate, type Profile } from '@/db/profile';
+import { addDays } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
@@ -18,17 +19,22 @@ const pos = (n: number) => Math.max(0, n);
 async function loadShopping(profile: Profile, days: number) {
   const [foods, logs] = await Promise.all([listFoods(), listLogs(localDate())]);
   const today = localDate();
-  const t = (await dayTargets(profile, [today], today)).get(today)!; // shortcut: later days are planned like today
+  const past = [1, 2, 3, 4, 5, 6, 7].map((n) => addDays(today, -n));
+  const all = await dayTargets(profile, [today, ...past], today);
+  const t = all.get(today)!;
+  // Later days: your average day this past week (today's target is still low before you've walked).
+  const week = past.map((d) => all.get(d)!);
+  const avg = (k: keyof Macros) => week.reduce((s, x) => s + x[k], 0) / week.length;
   const items = logs.flatMap((l) => l.items);
   const eatenMacros = sumMacros(items.map((i) => macrosFor(i.per100, i.grams)));
   const eaten = new Map<string, number>();
   for (const i of items) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
-  const daily = { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat };
+  const daily = { kcal: avg('kcal'), protein: avg('protein'), carbs: avg('carbs'), fat: avg('fat') };
   const required = {
-    kcal: pos(t.kcal - eatenMacros.kcal) + days * t.kcal,
-    protein: pos(t.protein - eatenMacros.protein) + days * t.protein,
-    carbs: pos(t.carbs - eatenMacros.carbs) + days * t.carbs,
-    fat: pos(t.fat - eatenMacros.fat) + days * t.fat,
+    kcal: pos(t.kcal - eatenMacros.kcal) + days * daily.kcal,
+    protein: pos(t.protein - eatenMacros.protein) + days * daily.protein,
+    carbs: pos(t.carbs - eatenMacros.carbs) + days * daily.carbs,
+    fat: pos(t.fat - eatenMacros.fat) + days * daily.fat,
   };
   const span = days + 1; // today counts as a day for limits and caps
   // The daily limit for every day in the span, minus what's already eaten today.

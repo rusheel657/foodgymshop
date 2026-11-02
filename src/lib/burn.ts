@@ -42,9 +42,3 @@ export function dayBurn(i: {
     total: Math.round(base + walk + lift),
   };
 }
-
-/** Steps to plan today with: what's walked so far, or the recent daily average if that's more (the day isn't over). */
-export function plannedSteps(soFar: number | undefined, recent: number[]) {
-  const avg = recent.length ? recent.reduce((s, n) => s + n, 0) / recent.length : 0;
-  return { steps: Math.max(soFar ?? 0, avg), projected: avg > (soFar ?? 0) };
-}

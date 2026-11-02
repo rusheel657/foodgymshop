@@ -31,9 +31,9 @@ export async function connectHealth() {
 
 let lastSync = 0;
 
-/** Copies steps per day for the last 5 weeks into the local database (at most every 2 minutes unless forced). */
+/** Copies steps per day for the last 5 weeks into the local database (at most every 50 s unless forced). */
 export async function syncSteps(force = false) {
-  if (!force && Date.now() - lastSync < 120_000) return;
+  if (!force && Date.now() - lastSync < 50_000) return;
   if ((await healthStatus()) !== 'on') return;
   lastSync = Date.now();
   const today = localDate();
@@ -56,7 +56,11 @@ export function useTargets(dates: string[]) {
     const sync = () => void syncSteps().catch(() => {});
     sync();
     const sub = App.addListener('resume', sync);
-    return () => void sub.then((s) => s.remove());
+    const timer = setInterval(() => document.visibilityState === 'visible' && sync(), 60_000); // steps update live
+    return () => {
+      clearInterval(timer);
+      void sub.then((s) => s.remove());
+    };
   }, []);
   const loaded = useLive(
     async () => (profile ? dayTargets(profile, dates) : undefined),

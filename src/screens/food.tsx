@@ -302,7 +302,10 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
   const diff = t.kcal - burn.total;
   return (
     <section className="burn-card">
-      <h2 className="burn-title">{today ? 'Calories today' : 'Calories that day'}</h2>
+      <div className="burn-row burn-head">
+        <h2 className="burn-title">{today ? 'Calories today' : 'Calories that day'}</h2>
+        <small>kcal</small>
+      </div>
       <div className="burn-row">
         <span>
           Your body
@@ -312,8 +315,8 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
       </div>
       <div className="burn-row">
         <span>
-          {burn.projected ? `${n(burn.steps)} steps (your usual)` : `${n(burn.stepsSoFar)} steps`}
-          {burn.projected && <small>{n(burn.stepsSoFar)} so far today; switches to your real steps once you pass it</small>}
+          {n(burn.steps)} steps
+          {today && <small>so far today, updates as you walk</small>}
         </span>
         <b>+{n(burn.stepKcal)}</b>
       </div>
@@ -323,7 +326,7 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
       </div>
       <div className="burn-row total">
         <span>You burn</span>
-        <b>{n(burn.total)} kcal</b>
+        <b>{n(burn.total)}</b>
       </div>
       {diff !== 0 && (
         <div className="burn-row">
@@ -336,7 +339,7 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
       )}
       <div className="burn-row total eat">
         <span>Eat</span>
-        <b>{n(t.kcal)} kcal</b>
+        <b>{n(t.kcal)}</b>
       </div>
     </section>
   );

@@ -1,7 +1,7 @@
 import { all, run, write } from '@/db/db';
 import { finishedWorkouts } from '@/db/gym';
 import { addDays } from '@/lib/history';
-import { dayBurn, plannedSteps, type Burn } from '@/lib/burn';
+import { dayBurn, type Burn } from '@/lib/burn';
 import { volume } from '@/lib/gym';
 import { ageOn, bmrOf, type Targets } from '@/lib/targets';
 import { localDate, targetsFor, type Profile } from '@/db/profile';
@@ -9,8 +9,7 @@ import { localDate, targetsFor, type Profile } from '@/db/profile';
 // Each day's calorie target from what you actually did: steps (Health Connect) + workouts logged in the Gym tab.
 // Days with no step data fall back to the profile's activity level.
 
-/** `projected`: today, planned with your usual steps because you've walked fewer so far (`stepsSoFar`). */
-export type DayTargets = Targets & { burn: (Burn & { projected: boolean; stepsSoFar: number }) | null };
+export type DayTargets = Targets & { burn: Burn | null };
 
 /** Stores steps per local day ("YYYY-MM-DD" → steps). */
 export async function saveSteps(days: Map<string, number>) {
@@ -31,7 +30,7 @@ const localStart = (date: string) => {
   return new Date(y, m - 1, d).toISOString();
 };
 
-/** Targets for each date (today plans with your usual steps until you pass them). */
+/** Targets for each date. Today counts the steps walked so far, so its target grows as you walk. */
 export async function dayTargets(profile: Profile, dates: string[], today = localDate()): Promise<Map<string, DayTargets>> {
   const out = new Map<string, DayTargets>();
   if (dates.length === 0) return out;
@@ -44,12 +43,10 @@ export async function dayTargets(profile: Profile, dates: string[], today = loca
   const workouts = await finishedWorkouts(localStart(from), localStart(to));
   for (const date of dates) {
     const when = new Date(`${date}T12:00`);
-    let s: { steps: number; projected: boolean } | null = steps.has(date) ? { steps: steps.get(date)!, projected: false } : null;
-    if (date === today) {
-      const recent = [1, 2, 3, 4, 5, 6, 7].map((n) => steps.get(addDays(today, -n))).filter((n): n is number => n !== undefined);
-      if (s || recent.length) s = plannedSteps(steps.get(date), recent);
-    }
-    if (!s) {
+    // Today with no steps recorded yet is 0 steps, as long as Health Connect has been sending steps lately.
+    const recent = [1, 2, 3, 4, 5, 6, 7].some((n) => steps.has(addDays(today, -n)));
+    const walked = steps.get(date) ?? (date === today && recent ? 0 : null);
+    if (walked === null) {
       out.set(date, { ...targetsFor(profile, when), burn: null });
       continue;
     }
@@ -57,7 +54,7 @@ export async function dayTargets(profile: Profile, dates: string[], today = loca
       bmr: bmrOf({ sex: profile.sex, age: ageOn(profile.birthDate, when), heightCm: profile.heightCm, weightKg: profile.weightKg }),
       weightKg: profile.weightKg,
       heightCm: profile.heightCm,
-      steps: s.steps,
+      steps: walked,
       workouts: workouts
         .filter((w) => localDate(new Date(w.startedAt)) === date)
         .map((w) => ({
@@ -65,7 +62,7 @@ export async function dayTargets(profile: Profile, dates: string[], today = loca
           volumeKg: volume(w.sets.map((x) => ({ ...x, done: !!x.completedAt }))),
         })),
     });
-    out.set(date, { ...targetsFor(profile, when, burn.total), burn: { ...burn, projected: s.projected, stepsSoFar: steps.get(date) ?? 0 } });
+    out.set(date, { ...targetsFor(profile, when, burn.total), burn });
   }
   return out;
 }
