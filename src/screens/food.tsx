@@ -165,7 +165,17 @@ export function FoodScreen() {
         </Ring>
       </section>
 
-      {t.burn && <BurnCard burn={t.burn} today={date === today} goal={t.kcal - t.maintenance} />}
+      {t.burn && (
+        <BurnCard
+          t={t}
+          today={date === today}
+          goal={
+            profile.calorieOverride !== null
+              ? 'Your set calorie target'
+              : `Goal: ${profile.goal} ${profile.rateKgWeek} kg a week`
+          }
+        />
+      )}
 
       <div className="macro-cards">
         <MacroCard label="Protein" value={eaten.protein} max={t.protein} icon={ICONS.protein} kind="protein" />
@@ -285,32 +295,49 @@ function SheetAction({ label, icon, onClick }: { label: string; icon: string; on
   );
 }
 
-/** Where the day's calorie target comes from: what you burn (base + steps + workouts) ± your weight goal. */
-function BurnCard({ burn, today, goal }: { burn: NonNullable<DayTargets['burn']>; today: boolean; goal: number }) {
+/** Where the day's calorie target comes from, as a plain sum: body + steps + gym = burned; ± goal = what to eat. */
+function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: string }) {
+  const burn = t.burn!;
   const n = (v: number) => Math.round(v).toLocaleString();
+  const diff = t.kcal - burn.total;
   return (
     <section className="burn-card">
-      <div className="burn-head">
-        <span className="small muted">{today ? 'Burning today' : 'Burned'}</span>
-        <strong>{n(burn.total)} kcal</strong>
+      <h2 className="burn-title">{today ? 'Calories today' : 'Calories that day'}</h2>
+      <div className="burn-row">
+        <span>
+          Your body
+          <small>resting, digesting, moving about</small>
+        </span>
+        <b>{n(burn.base)}</b>
       </div>
-      <div className="burn-parts small">
+      <div className="burn-row">
         <span>
-          <b>{n(burn.base)}</b> body
+          {burn.projected ? `${n(burn.steps)} steps (your usual)` : `${n(burn.stepsSoFar)} steps`}
+          {burn.projected && <small>{n(burn.stepsSoFar)} so far today; switches to your real steps once you pass it</small>}
         </span>
-        <span>
-          <b>+{n(burn.stepKcal)}</b> {n(burn.steps)} steps{burn.projected ? '*' : ''}
-        </span>
-        <span>
-          <b>+{n(burn.workoutKcal)}</b> {burn.workoutMinutes ? `${burn.workoutMinutes} min lifting` : 'no workout'}
-        </span>
-        {goal !== 0 && (
-          <span>
-            <b>{goal > 0 ? '+' : '−'}{n(Math.abs(goal))}</b> {goal > 0 ? 'to gain' : 'to lose'}
-          </span>
-        )}
+        <b>+{n(burn.stepKcal)}</b>
       </div>
-      {burn.projected && <p className="small muted">*Your usual steps until you walk more today; the target updates as you go.</p>}
+      <div className="burn-row">
+        <span>{burn.workoutMinutes ? `Gym · ${burn.workoutMinutes} min` : 'Gym · no workout'}</span>
+        <b>+{n(burn.workoutKcal)}</b>
+      </div>
+      <div className="burn-row total">
+        <span>You burn</span>
+        <b>{n(burn.total)} kcal</b>
+      </div>
+      {diff !== 0 && (
+        <div className="burn-row">
+          <span>{goal}</span>
+          <b>
+            {diff > 0 ? '+' : '−'}
+            {n(Math.abs(diff))}
+          </b>
+        </div>
+      )}
+      <div className="burn-row total eat">
+        <span>Eat</span>
+        <b>{n(t.kcal)} kcal</b>
+      </div>
     </section>
   );
 }

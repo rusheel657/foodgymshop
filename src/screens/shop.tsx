@@ -182,7 +182,7 @@ export function ShoppingScreen() {
 
 type Plan = NonNullable<ReturnType<typeof useShopping>>;
 
-/** Where a macro comes from: what's needed, what home stock covers (food by food), and what the list adds. */
+/** Where a macro comes from: what's needed, what's at home (food by food), and what the list adds. */
 function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan: Plan }) {
   const label = MACROS.find((m) => m.key === macro)!.label.toLowerCase();
   const rows = (items: { foodId: string; grams: number }[]) =>
@@ -202,15 +202,18 @@ function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan:
         <span>Needed for the rest of today + {horizon(plan.days)}</span>
         <strong>{Math.round(plan.required[macro])} g</strong>
       </div>
-      <p className="src-group">From what's at home · {sum(home)} g</p>
+      <p className="src-group">At home · {sum(home)} g</p>
       {home.length === 0 && <p className="small muted">Nothing at home adds {label}.</p>}
       {home.map(({ f, grams, g }) => (
         <div key={f.id} className="src-row">
           <span className="grow">
             {f.name}
             <span className="small muted">
-              uses {amountLabel(grams, f.pieceGrams)}
-              {f.homeGrams !== null ? ` of ${amountLabel(f.homeGrams, f.pieceGrams)} you have` : ''}
+              {f.homeGrams === null
+                ? `any amount · counted as ${amountLabel(grams, f.pieceGrams)}`
+                : grams < f.homeGrams - 0.5
+                  ? `${amountLabel(grams, f.pieceGrams)} of ${amountLabel(f.homeGrams, f.pieceGrams)} · daily limit`
+                  : amountLabel(grams, f.pieceGrams)}
             </span>
           </span>
           <strong>{Math.round(g)} g</strong>
@@ -230,9 +233,6 @@ function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan:
           <strong>+{Math.round(g)} g</strong>
         </div>
       ))}
-      <p className="small muted">
-        Home stock isn't all used when other limits apply (daily limits, smallest portions, pairings) or when using more would overshoot other macros.
-      </p>
     </div>
   );
 }

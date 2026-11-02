@@ -9,7 +9,8 @@ import { localDate, targetsFor, type Profile } from '@/db/profile';
 // Each day's calorie target from what you actually did: steps (Health Connect) + workouts logged in the Gym tab.
 // Days with no step data fall back to the profile's activity level.
 
-export type DayTargets = Targets & { burn: (Burn & { projected: boolean }) | null };
+/** `projected`: today, planned with your usual steps because you've walked fewer so far (`stepsSoFar`). */
+export type DayTargets = Targets & { burn: (Burn & { projected: boolean; stepsSoFar: number }) | null };
 
 /** Stores steps per local day ("YYYY-MM-DD" → steps). */
 export async function saveSteps(days: Map<string, number>) {
@@ -64,7 +65,7 @@ export async function dayTargets(profile: Profile, dates: string[], today = loca
           volumeKg: volume(w.sets.map((x) => ({ ...x, done: !!x.completedAt }))),
         })),
     });
-    out.set(date, { ...targetsFor(profile, when, burn.total), burn: { ...burn, projected: s.projected } });
+    out.set(date, { ...targetsFor(profile, when, burn.total), burn: { ...burn, projected: s.projected, stepsSoFar: steps.get(date) ?? 0 } });
   }
   return out;
 }

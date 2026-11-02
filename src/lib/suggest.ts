@@ -192,10 +192,11 @@ export function planMacros(plan: Suggestion[], foods: (Macros & { id: string })[
   return t;
 }
 
-/** Shopping check. Plans `required` (rest of today + tomorrow) from what's at home (`stock`, maxGrams = what you have).
- *  If a macro ends up more than 10% of a day short, it plans again with home stock plus what could be bought
- *  (`catalog`, maxGrams = a sensible amount to buy) and `buy` is what that plan uses beyond what's at home,
- *  so buying the list covers the plan. */
+/** Shopping check. `short` is what's missing in total: `required` (rest of today + the next days) minus everything
+ *  usable at home (`stock`, maxGrams = what you have within daily limits). Not a meal plan's leftovers: a plan avoids
+ *  overshooting fat, so it can leave protein unused even when there's plenty. If a macro is short by more than 10% of
+ *  a day, it plans with home stock plus what could be bought (`catalog`, maxGrams = a sensible amount to buy) and
+ *  `buy` is what that plan uses beyond what's at home. */
 export function planShopping(
   required: Macros,
   daily: Macros,
@@ -203,13 +204,13 @@ export function planShopping(
   catalog: SuggestFood[],
   butter: (Macros & { id: string; name: string }) | null,
 ) {
-  const fromHome = suggest(required, stock, butter, 10);
-  const got = planMacros(fromHome, butter ? [...stock, butter] : stock);
+  const fromHome = stock.filter((f) => f.maxGrams > 0).map((f) => ({ foodId: f.id, name: f.name, grams: f.maxGrams }));
+  const have = planMacros(fromHome, stock);
   const short = {
-    kcal: Math.max(0, required.kcal - got.kcal),
-    protein: Math.max(0, required.protein - got.protein),
-    carbs: Math.max(0, required.carbs - got.carbs),
-    fat: Math.max(0, required.fat - got.fat),
+    kcal: Math.max(0, required.kcal - have.kcal),
+    protein: Math.max(0, required.protein - have.protein),
+    carbs: Math.max(0, required.carbs - have.carbs),
+    fat: Math.max(0, required.fat - have.fat),
   };
   const needed = short.protein > daily.protein * 0.1 || short.carbs > daily.carbs * 0.1 || short.fat > daily.fat * 0.1;
   if (!needed) return { needed, short, fromHome, buy: [] as Suggestion[] };

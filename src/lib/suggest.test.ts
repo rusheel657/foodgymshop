@@ -159,3 +159,18 @@ test('shopping: butter at home counts as fat (it was only treated as cooking but
   assert.equal(planShopping(required, daily, stock, catalog, null).needed, true); // lean food only → short on fat
   assert.equal(planShopping(required, daily, [...stock, { ...butter, maxGrams: 700 }], catalog, butter).needed, false);
 });
+
+test('shopping: plenty of protein at home is never "short", even when fatty foods would overshoot fat', () => {
+  const daily = { kcal: 2200, protein: 140, carbs: 230, fat: 60 };
+  const required = { kcal: 2200, protein: 140, carbs: 230, fat: 60 }; // one day
+  // 577 g protein at home, mostly fatty (lamb, eggs) plus a little chicken; a balanced plan wouldn't use it all.
+  const eggs = f('eggs', 'Eggs', 143, 12.6, 0.7, 9.9);
+  const stock = [{ ...lamb, maxGrams: 1500 }, { ...eggs, maxGrams: 1200 }, { ...chicken, maxGrams: 400 }, { ...bread, maxGrams: 800 }];
+  const catalog = [lamb, eggs, chicken, bread].map((x) => ({ ...x, maxGrams: 1000 }));
+  const r = planShopping(required, daily, stock, catalog, null);
+  assert.equal(r.short.protein, 0, JSON.stringify(r.short));
+  assert.equal(r.needed, false);
+  // Short means short in total: with only 100 g of chicken at home, 116 g protein is missing.
+  const low = planShopping(required, daily, [{ ...chicken, maxGrams: 100 }, { ...bread, maxGrams: 800 }], catalog, null);
+  assert.equal(Math.round(low.short.protein), Math.round(140 - 24 - 85.6));
+});
