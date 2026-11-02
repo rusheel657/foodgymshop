@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 import { dayTargets, saveSteps } from '@/db/activity';
 import { addDays } from '@/lib/history';
-import { localDate } from '@/db/profile';
+import { localDate, targetsFor } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { useLive } from '@/lib/use-live';
 
@@ -58,9 +58,15 @@ export function useTargets(dates: string[]) {
     const sub = App.addListener('resume', sync);
     return () => void sub.then((s) => s.remove());
   }, []);
-  return useLive(
+  const loaded = useLive(
     async () => (profile ? dayTargets(profile, dates) : undefined),
     ['daily_steps', 'workouts', 'workout_sets', 'weight_logs', 'profile'],
     [profile, dates.join()],
   );
+  if (!loaded || !profile || dates.every((d) => loaded.has(d))) return loaded;
+  // Just switched to other dates (swiped to last week): the previous dates' data is still showing until the new load
+  // lands, so fill the gaps with the activity-level target instead of leaving them undefined.
+  const filled = new Map(loaded);
+  for (const d of dates) if (!filled.has(d)) filled.set(d, { ...targetsFor(profile, new Date(`${d}T12:00`)), burn: null });
+  return filled;
 }
