@@ -165,4 +165,8 @@ export const MIGRATIONS: string[] = [
   `,
   // 8: foods switched off in My Diet (kept, but left out of suggestions, shopping, At home and photo matching).
   `ALTER TABLE foods ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;`,
+  // 9: steps per local day, copied from Health Connect (id = the date, "YYYY-MM-DD").
+  `CREATE TABLE daily_steps (${SYNC},
+    steps INTEGER NOT NULL
+  );`,
 ];

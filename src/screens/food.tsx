@@ -1,10 +1,12 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { EmptyState, ListRow } from '@/components/ui';
+import type { DayTargets } from '@/db/activity';
 import { listFoods, listMeals } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
-import { localDate, targetsFor } from '@/db/profile';
+import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
+import { useTargets } from '@/lib/health';
 import { addDays, dayStatus, streak, weekOf } from '@/lib/history';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
@@ -79,9 +81,10 @@ export function FoodScreen() {
   }, ['foods', 'meals']);
   const swipe = useRef<number | null>(null);
   const shopping = useShopping();
-  if (!profile || !logs || !days || !weekDays) return null;
+  const targets = useTargets(week);
+  if (!profile || !logs || !days || !weekDays || !targets) return null;
 
-  const t = targetsFor(profile);
+  const t = targets.get(date)!;
   const eaten = sumMacros(logs.flatMap((l) => l.items.map((i) => macrosFor(i.per100, i.grams))));
   const left = Math.round(t.kcal - eaten.kcal);
   const loggedAt = logTimeFor(date, today);
@@ -128,7 +131,8 @@ export function FoodScreen() {
         {week.map((d) => {
           const m = weekDays.get(d);
           const kcal = m?.kcal ?? 0;
-          const status = kcal > 0 ? dayStatus(kcal, t.kcal) : 'empty';
+          const dayKcal = targets.get(d)!.kcal;
+          const status = kcal > 0 ? dayStatus(kcal, dayKcal) : 'empty';
           return (
             <button
               key={d}
@@ -139,7 +143,7 @@ export function FoodScreen() {
               aria-label={`${d}: ${kcal ? `${Math.round(kcal)} kcal` : 'nothing logged'}`}
               onClick={() => go(d)}>
               <span className="small">{new Date(`${d}T12:00`).toLocaleDateString([], { weekday: 'short' })}</span>
-              <Ring value={kcal} max={t.kcal} size={38} stroke={3} dashed={!kcal}>
+              <Ring value={kcal} max={dayKcal} size={38} stroke={3} dashed={!kcal}>
                 <span className="week-num">{Number(d.slice(8))}</span>
               </Ring>
             </button>
@@ -160,6 +164,8 @@ export function FoodScreen() {
           <Glyph d={ICONS.flame} className="glyph big" />
         </Ring>
       </section>
+
+      {t.burn && <BurnCard burn={t.burn} today={date === today} goal={t.kcal - t.maintenance} />}
 
       <div className="macro-cards">
         <MacroCard label="Protein" value={eaten.protein} max={t.protein} icon={ICONS.protein} kind="protein" />
@@ -276,5 +282,35 @@ function SheetAction({ label, icon, onClick }: { label: string; icon: string; on
       </svg>
       {label}
     </button>
+  );
+}
+
+/** Where the day's calorie target comes from: what you burn (base + steps + workouts) ± your weight goal. */
+function BurnCard({ burn, today, goal }: { burn: NonNullable<DayTargets['burn']>; today: boolean; goal: number }) {
+  const n = (v: number) => Math.round(v).toLocaleString();
+  return (
+    <section className="burn-card">
+      <div className="burn-head">
+        <span className="small muted">{today ? 'Burning today' : 'Burned'}</span>
+        <strong>{n(burn.total)} kcal</strong>
+      </div>
+      <div className="burn-parts small">
+        <span>
+          <b>{n(burn.base)}</b> body
+        </span>
+        <span>
+          <b>+{n(burn.stepKcal)}</b> {n(burn.steps)} steps{burn.projected ? '*' : ''}
+        </span>
+        <span>
+          <b>+{n(burn.workoutKcal)}</b> {burn.workoutMinutes ? `${burn.workoutMinutes} min lifting` : 'no workout'}
+        </span>
+        {goal !== 0 && (
+          <span>
+            <b>{goal > 0 ? '+' : '−'}{n(Math.abs(goal))}</b> {goal > 0 ? 'to gain' : 'to lose'}
+          </span>
+        )}
+      </div>
+      {burn.projected && <p className="small muted">*Your usual steps until you walk more today; the target updates as you go.</p>}
+    </section>
   );
 }

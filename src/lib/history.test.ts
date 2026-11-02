@@ -26,10 +26,13 @@ test('month stats average logged days only', () => {
     ['2026-10-02', { kcal: 1000, protein: 50, carbs: 100, fat: 30 }],
     ['2026-10-03', { kcal: 0, protein: 0, carbs: 0, fat: 0 }],
   ]);
-  assert.deepEqual(monthStats(days, target), {
-    logged: 2, avg: { kcal: 1500, protein: 100, carbs: 150, fat: 50 }, onTarget: 1, proteinHit: 1,
+  assert.deepEqual(monthStats(days, () => target), {
+    logged: 2, avg: { kcal: 1500, protein: 100, carbs: 150, fat: 50 }, avgTarget: target, onTarget: 1, proteinHit: 1,
   });
-  assert.equal(monthStats(new Map(), target).logged, 0);
+  assert.equal(monthStats(new Map(), () => target).logged, 0);
+  // Each day against its own target: 1,000 kcal is on target on a 1,100 kcal rest day.
+  const busy = monthStats(days, (d) => (d === '2026-10-02' ? { ...target, kcal: 1100 } : target));
+  assert.equal(busy.onTarget, 2);
 });
 
 test('weeks run Monday to Sunday, across month ends', () => {

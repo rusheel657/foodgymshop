@@ -124,7 +124,7 @@ export function ProfileForm({
         </Field>
       </div>
 
-      <Field label="Activity" hint={ACTIVITY_LEVELS.find((a) => a.value === d.activity)?.hint}>
+      <Field label="Activity" hint={`${ACTIVITY_LEVELS.find((a) => a.value === d.activity)?.hint ?? ''}. Only used on days without step data from Health Connect.`}>
         <Segmented vertical options={ACTIVITY_LEVELS} value={d.activity} onChange={(activity) => set({ activity })} />
       </Field>
 
@@ -205,7 +205,7 @@ export function ProfileForm({
             <p className="muted">
               P {targets.protein} g · C {targets.carbs} g · F {targets.fat} g
             </p>
-            <p className="small muted">Maintenance ≈ {targets.maintenance} kcal</p>
+            <p className="small muted">Maintenance ≈ {targets.maintenance} kcal from your activity level. With Health Connect, the Food tab shows each day's target from your steps and workouts.</p>
           </>
         ) : (
           <p className="muted">{result as string}</p>

@@ -14,6 +14,7 @@ export type TargetInput = {
   proteinGPerLb: number;
   carbRatio: number;
   calorieOverride: number | null;
+  burnKcal?: number | null; // the day's measured burn (steps + workouts); replaces BMR × activity
 };
 
 export type Targets = { maintenance: number; kcal: number; protein: number; carbs: number; fat: number };
@@ -37,10 +38,13 @@ export function ageOn(birthDate: string, today: Date): number {
   return today.getFullYear() - y - (hadBirthday ? 0 : 1);
 }
 
+/** Mifflin-St Jeor. */
+export function bmrOf(i: { sex: Sex; age: number; heightCm: number; weightKg: number }) {
+  return 10 * i.weightKg + 6.25 * i.heightCm - 5 * i.age + (i.sex === 'male' ? 5 : -161);
+}
+
 export function computeTargets(i: TargetInput): Targets {
-  // Mifflin-St Jeor
-  const bmr = 10 * i.weightKg + 6.25 * i.heightCm - 5 * i.age + (i.sex === 'male' ? 5 : -161);
-  const maintenance = bmr * i.activity;
+  const maintenance = i.burnKcal ?? bmrOf(i) * i.activity;
   const sign = i.goal === 'lose' ? -1 : i.goal === 'gain' ? 1 : 0;
   const kcal = Math.round(i.calorieOverride ?? maintenance + (sign * i.rateKgWeek * KCAL_PER_KG) / 7);
   const protein = Math.round(i.proteinGPerLb * i.weightKg * LB_PER_KG);

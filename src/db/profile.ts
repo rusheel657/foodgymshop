@@ -35,7 +35,8 @@ export function localDate(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function targetsFor(p: Profile, today = new Date()): Targets {
+/** `burnKcal`: that day's measured burn, if known (see db/activity.ts). */
+export function targetsFor(p: Profile, today = new Date(), burnKcal?: number | null): Targets {
   return computeTargets({
     sex: p.sex,
     age: ageOn(p.birthDate, today),
@@ -47,6 +48,7 @@ export function targetsFor(p: Profile, today = new Date()): Targets {
     proteinGPerLb: p.proteinGPerLb,
     carbRatio: p.carbRatio,
     calorieOverride: p.calorieOverride,
+    burnKcal,
   });
 }
 

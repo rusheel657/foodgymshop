@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { Page, Segmented } from '@/components/ui';
 import { listFoods, restock, type Food } from '@/db/diet';
 import { listLogs } from '@/db/log';
-import { localDate, targetsFor, type Profile } from '@/db/profile';
+import { dayTargets } from '@/db/activity';
+import { localDate, type Profile } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
@@ -16,7 +17,8 @@ const pos = (n: number) => Math.max(0, n);
 /** Can what's at home cover the rest of today plus the next `days` days? If not, what to buy. */
 async function loadShopping(profile: Profile, days: number) {
   const [foods, logs] = await Promise.all([listFoods(), listLogs(localDate())]);
-  const t = targetsFor(profile);
+  const today = localDate();
+  const t = (await dayTargets(profile, [today], today)).get(today)!; // shortcut: later days are planned like today
   const items = logs.flatMap((l) => l.items);
   const eatenMacros = sumMacros(items.map((i) => macrosFor(i.per100, i.grams)));
   const eaten = new Map<string, number>();
@@ -72,7 +74,7 @@ export const horizon = (days: number) => (days === 1 ? 'tomorrow' : `the next ${
 export function useShopping() {
   const { profile } = useAccount();
   const [days] = useShopDays();
-  return useLive(async () => (profile ? loadShopping(profile, days) : null), ['foods', 'food_logs', 'food_log_items'], [profile, days]);
+  return useLive(async () => (profile ? loadShopping(profile, days) : null), ['foods', 'food_logs', 'food_log_items', 'daily_steps', 'workouts', 'workout_sets'], [profile, days]);
 }
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5].map((d) => ({ value: d, label: d === 1 ? '1 day' : `${d} days` }));

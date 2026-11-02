@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { Button, EmptyState, NumberInput, num, Page, Segmented } from '@/components/ui';
 import { listFoods, listStockChanges, setAtHome, setHomeGrams, type Food, type StockReason } from '@/db/diet';
 import { listLogs, usualPortions } from '@/db/log';
-import { localDate, targetsFor } from '@/db/profile';
+import { localDate } from '@/db/profile';
 import { addDays, ymd } from '@/lib/history';
-import { useAccount } from '@/lib/account';
+import { useTargets } from '@/lib/health';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { addPhoto, canUseCamera } from '@/lib/photos';
@@ -127,12 +127,12 @@ const STOCK_MACROS = [
 /** What's in the kitchen in total and how long it lasts at your daily targets; tap a macro for its sources.
  *  Foods set to "any" have no amount to add up. */
 function StockTotals({ foods }: { foods: Food[] }) {
-  const { profile } = useAccount();
+  const today = localDate();
+  const target = useTargets([today])?.get(today);
   const [open, setOpen] = useState<(typeof STOCK_MACROS)[number]['key'] | null>(null);
   const counted = foods.filter((f) => f.atHome && f.homeGrams !== null);
   const anyCount = foods.filter((f) => f.atHome && f.homeGrams === null).length;
   const t = sumMacros(counted.map((f) => macrosFor(f, f.homeGrams!)));
-  const target = profile && targetsFor(profile);
   // The macro that runs out first sets how long the kitchen lasts.
   const first = target && [...STOCK_MACROS].sort((a, b) => t[a.key] / target[a.key] - t[b.key] / target[b.key])[0];
   return (
@@ -237,7 +237,6 @@ const SIZE_OPTIONS = [
 
 export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; loggedAt: string }) {
   const nav = useNav();
-  const { profile } = useAccount();
   const [size, setSize] = useState<MealSize>(() => {
     const saved = localStorage.getItem('meal-size');
     return saved && saved in MEAL_SIZES ? (saved as MealSize) : 'medium';
@@ -248,9 +247,10 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
     ['foods', 'food_logs', 'food_log_items'],
     [day],
   );
-  if (!data || !profile) return null;
+  const targets = useTargets([day]);
+  if (!data || !targets) return null;
   const { foods, usual, logs } = data;
-  const meal = mealTarget(remaining, targetsFor(profile).kcal, size);
+  const meal = mealTarget(remaining, targets.get(day)!.kcal, size);
   // Grams of each food already eaten that day, so daily limits count it.
   const eaten = new Map<string, number>();
   for (const i of logs.flatMap((l) => l.items)) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);

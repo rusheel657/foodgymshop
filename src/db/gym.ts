@@ -147,6 +147,10 @@ export async function activeWorkout(): Promise<Workout | null> {
   return (await loadWorkouts('ended_at IS NULL ORDER BY started_at DESC LIMIT 1'))[0] ?? null;
 }
 
+/** Finished workouts that started between two ISO timestamps. */
+export const finishedWorkouts = (from: string, to: string) =>
+  loadWorkouts('ended_at IS NOT NULL AND started_at >= ? AND started_at < ?', [from, to]);
+
 export const getWorkout = async (id: string) => (await loadWorkouts('id = ?', [id]))[0] ?? null;
 
 /** Completed sets from the most recent finished workout that had each exercise ("Previous" column, pre-fill). */

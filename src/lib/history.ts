@@ -24,16 +24,21 @@ export function dayStatus(kcal: number, target: number): 'under' | 'on' | 'over'
 
 export const proteinHit = (protein: number, target: number) => protein >= target * 0.9;
 
-/** Averages over days that have any food logged. */
-export function monthStats(days: Map<string, Macros>, target: Macros) {
-  const list = [...days.values()].filter((m) => m.kcal > 0);
+/** Averages over days that have any food logged, against each day's own target. */
+export function monthStats(days: Map<string, Macros>, targetOn: (date: string) => Macros) {
+  const list = [...days].filter(([, m]) => m.kcal > 0);
   const n = list.length;
-  const avg = (k: keyof Macros) => (n ? list.reduce((s, m) => s + m[k], 0) / n : 0);
+  const avg = (pick: (date: string, m: Macros) => number) => (n ? list.reduce((s, [d, m]) => s + pick(d, m), 0) / n : 0);
+  const avgOf = (f: (date: string, m: Macros) => Macros) => ({
+    kcal: avg((d, m) => f(d, m).kcal), protein: avg((d, m) => f(d, m).protein),
+    carbs: avg((d, m) => f(d, m).carbs), fat: avg((d, m) => f(d, m).fat),
+  });
   return {
     logged: n,
-    avg: { kcal: avg('kcal'), protein: avg('protein'), carbs: avg('carbs'), fat: avg('fat') },
-    onTarget: list.filter((m) => dayStatus(m.kcal, target.kcal) === 'on').length,
-    proteinHit: list.filter((m) => proteinHit(m.protein, target.protein)).length,
+    avg: avgOf((_, m) => m),
+    avgTarget: avgOf((d) => targetOn(d)),
+    onTarget: list.filter(([d, m]) => dayStatus(m.kcal, targetOn(d).kcal) === 'on').length,
+    proteinHit: list.filter(([d, m]) => proteinHit(m.protein, targetOn(d).protein)).length,
   };
 }
 
