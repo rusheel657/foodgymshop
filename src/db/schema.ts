@@ -169,4 +169,6 @@ export const MIGRATIONS: string[] = [
   `CREATE TABLE daily_steps (${SYNC},
     steps INTEGER NOT NULL
   );`,
+  // 10: a workout's own name (its template's, or the workout name from a Strong import).
+  `ALTER TABLE workouts ADD COLUMN name TEXT;`,
 ];

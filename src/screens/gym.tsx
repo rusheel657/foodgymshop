@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 
-import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, SectionHead, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, SectionHead, Segmented, TextInput } from '@/components/ui';
 import {
   activeWorkout, addExercise, addSet, DEFAULT_REST_S, deleteTemplate, discardWorkout, finishWorkout, getWorkout,
   groupSets, imageUrl, insertWarmups, listExercises, listTemplates, MUSCLES, previousSets, removeExercise, removeSet,
-  saveCustomExercise, saveTemplate, startWorkout, updateSet,
+  importStrong, saveCustomExercise, saveTemplate, startWorkout, updateSet, workoutHistory,
   type Exercise, type Template, type TemplateExercise, type Workout, type WorkoutSet,
 } from '@/db/gym';
 import { useAccount } from '@/lib/account';
 import { epley, formatDuration, shape, volume, warmups } from '@/lib/gym';
 import { useNav } from '@/lib/nav';
 import { addRest, prepareRestNotifications, startRest, stopRest, useRest } from '@/lib/rest-timer';
+import { parseStrong, type StrongWorkout } from '@/lib/strong';
 import { useLive } from '@/lib/use-live';
 
 const WORKOUT_TABLES = ['workouts', 'workout_sets'];
@@ -52,8 +53,9 @@ export function GymScreen() {
   const active = useLive(activeWorkout, WORKOUT_TABLES);
   const templates = useLive(listTemplates, TEMPLATE_TABLES);
   const exercises = useLive(listExercises, ['exercises']);
+  const history = useLive(() => workoutHistory(30), WORKOUT_TABLES);
   const now = useNow();
-  if (active === undefined || !templates || !exercises) return null;
+  if (active === undefined || !templates || !exercises || !history) return null;
 
   return (
     <Screen title="Gym">
@@ -81,6 +83,21 @@ export function GymScreen() {
               title={t.name}
               subtitle={t.exercises.map((e) => nameOf(exercises, e.exerciseId)).join(', ') || 'No exercises'}
               onClick={() => nav.push(<TemplateFormScreen template={t} />)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="stack-sm">
+        <SectionHead title="History" action="Import from Strong" onAction={() => nav.push(<ImportStrongScreen />)} />
+        {history.length === 0 && <EmptyState text="Finished workouts show up here." />}
+        <div className="list">
+          {history.map((w) => (
+            <ListRow
+              key={w.id}
+              title={w.name ?? templates.find((t) => t.id === w.templateId)?.name ?? 'Workout'}
+              subtitle={`${new Date(w.startedAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${formatDuration(Date.parse(w.endedAt!) - Date.parse(w.startedAt))} · ${Math.round(volume(w.sets.map((s) => ({ ...s, done: !!s.completedAt })))).toLocaleString()} kg`}
+              onClick={() => nav.push(<WorkoutSummaryScreen workout={w} exercises={exercises} title={w.name ?? 'Workout'} />)}
             />
           ))}
         </div>
@@ -526,12 +543,12 @@ function RestBar() {
   );
 }
 
-function WorkoutSummaryScreen({ workout, exercises }: { workout: Workout; exercises: Exercise[] }) {
+function WorkoutSummaryScreen({ workout, exercises, title = 'Workout done' }: { workout: Workout; exercises: Exercise[]; title?: string }) {
   const nav = useNav();
   const sets = workout.sets.map((s) => ({ ...s, done: !!s.completedAt }));
   const working = sets.filter((s) => !s.isWarmup);
   return (
-    <Page title="Workout done">
+    <Page title={title}>
       <div className="card">
         <div className="row">
           <div>
@@ -565,6 +582,99 @@ function WorkoutSummaryScreen({ workout, exercises }: { workout: Workout; exerci
         })}
       </div>
       <Button title="Done" onClick={() => nav.pop()} />
+    </Page>
+  );
+}
+
+// ---- Import from Strong ----
+
+/** Strong's CSV export → history + templates (see importStrong). */
+function ImportStrongScreen() {
+  const nav = useNav();
+  const { userId } = useAccount();
+  const [text, setText] = useState<string | null>(null);
+  const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<Awaited<ReturnType<typeof importStrong>> | null>(null);
+  let parsed: StrongWorkout[] | null = null;
+  let parseError: string | null = null;
+  try {
+    parsed = text === null ? null : parseStrong(text, unit);
+  } catch (e) {
+    parseError = (e as Error).message;
+  }
+  const sets = parsed?.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) ?? 0;
+  const day = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+
+  async function run() {
+    setBusy(true);
+    try {
+      setDone(await importStrong(userId, parsed!));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <Page title="Imported">
+        <div className="card stack-sm">
+          <strong>{done.workouts.toLocaleString()} workouts · {done.sets.toLocaleString()} sets</strong>
+          <p className="small muted">
+            {done.templates} new templates (one per workout name, from its latest session) · {done.exercises} exercises added under Strong's names
+            {done.skipped ? ` · ${done.skipped} already imported, skipped` : ''}
+          </p>
+        </div>
+        <Button title="Done" onClick={() => nav.pop()} />
+      </Page>
+    );
+  }
+
+  return (
+    <Page title="Import from Strong">
+      <div className="card stack-sm">
+        <p className="small">
+          In Strong, open <b>Settings → Export Strong Data</b> (or Profile → Settings → Export data) and save the CSV to your phone. Then pick it
+          here.
+        </p>
+        <p className="small muted">
+          Strong's export has your workout history, but not your templates. A template is rebuilt for each workout name (e.g. "Push A") from
+          the last time you did it. Exercises are matched to this app's list where the name fits; the rest are added under Strong's names.
+        </p>
+      </div>
+      <label className="button secondary file-button">
+        {text === null ? 'Choose the CSV file' : 'Choose a different file'}
+        <input
+          type="file"
+          accept=".csv,text/csv,text/comma-separated-values,text/plain"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) setText(await file.text());
+          }}
+        />
+      </label>
+      {text !== null && (
+        <Field label="Weights in the file are in" hint="As set in Strong. Ignored if the file says (kg or lbs in its header).">
+          <Segmented options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }] as const} value={unit} onChange={setUnit} />
+        </Field>
+      )}
+      {(parseError || error) && <p className="small danger">{parseError ?? error}</p>}
+      {parsed && parsed.length === 0 && <p className="small muted">No strength sets found in this file.</p>}
+      {parsed && parsed.length > 0 && (
+        <>
+          <div className="card stack-sm">
+            <strong>{parsed.length.toLocaleString()} workouts · {sets.toLocaleString()} sets</strong>
+            <p className="small muted">
+              {day(parsed[0].startedAt)} – {day(parsed.at(-1)!.startedAt)} · {new Set(parsed.map((w) => w.name)).size} workout names ·{' '}
+              {new Set(parsed.flatMap((w) => w.exercises.map((e) => e.name))).size} exercises
+            </p>
+          </div>
+          <Button title="Import" onClick={run} busy={busy} />
+        </>
+      )}
     </Page>
   );
 }

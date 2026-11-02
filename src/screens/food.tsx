@@ -18,6 +18,7 @@ import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
 import { horizon, ShoppingScreen, useShopping } from '@/screens/shop';
+import { WeightScreen } from '@/screens/weight';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LOG_TABLES = ['food_logs', 'food_log_items'];
@@ -210,6 +211,7 @@ export function FoodScreen() {
       <div className="list">
         <ListRow title="My Diet" subtitle={counts && `${plural(counts.foods, 'food')} · ${plural(counts.meals, 'meal')}`} onClick={() => nav.push(<MyDietScreen />)} />
         <ListRow title="At home" subtitle={counts && `${plural(counts.home, 'food')} in the kitchen`} onClick={() => nav.push(<AtHomeScreen />)} />
+        <ListRow title="Weight" subtitle={`${profile.weightKg} kg · log today's weight`} onClick={() => nav.push(<WeightScreen />)} />
         <ListRow
           title="History"
           subtitle="Calendar of past days"

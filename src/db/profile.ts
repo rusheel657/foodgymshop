@@ -1,4 +1,4 @@
-import { first, run, write } from '@/db/db';
+import { all, first, run, write } from '@/db/db';
 import { ageOn, computeTargets, type Goal, type Sex, type Targets } from '@/lib/targets';
 
 export type Profile = {
@@ -103,4 +103,33 @@ export async function saveProfile(userId: string, p: Profile, previousWeightKg?:
       );
     }
   });
+}
+
+// ---- Weight log (the latest entry is the profile's weight) ----
+
+export type WeightEntry = { id: string; date: string; kg: number };
+
+export async function listWeights(): Promise<WeightEntry[]> {
+  const rows = await all<{ id: string; date: string; weight_kg: number }>(
+    'SELECT id, date, weight_kg FROM weight_logs WHERE deleted_at IS NULL ORDER BY date',
+  );
+  return rows.map((r) => ({ id: r.id, date: r.date, kg: r.weight_kg }));
+}
+
+/** One entry per day: logging again the same day replaces it. */
+export async function saveWeight(userId: string, date: string, kg: number) {
+  const now = new Date().toISOString();
+  await write(['weight_logs'], () =>
+    run(
+      `INSERT INTO weight_logs (id, user_id, updated_at, dirty, date, weight_kg) VALUES (?, ?, ?, 1, ?, ?)
+       ON CONFLICT (user_id, date) DO UPDATE SET
+         weight_kg = excluded.weight_kg, updated_at = excluded.updated_at, dirty = 1, deleted_at = NULL`,
+      [crypto.randomUUID(), userId, now, date, kg],
+    ),
+  );
+}
+
+export async function deleteWeight(id: string) {
+  const now = new Date().toISOString();
+  await write(['weight_logs'], () => run('UPDATE weight_logs SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ?', [now, now, id]));
 }

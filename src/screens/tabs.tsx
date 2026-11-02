@@ -14,6 +14,7 @@ import { applyTheme, getThemePref, isSpecial, SKINS } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
 import { SmartList } from '@/screens/shop';
 import { ThemesScreen } from '@/screens/themes';
+import { WeightScreen } from '@/screens/weight';
 
 export function ShopScreen() {
   const foods = useLive(listFoods, ['foods']);
@@ -62,6 +63,7 @@ export function ProfileScreen() {
     <Screen title="Profile">
       <p className="muted">{email}</p>
       <div className="list">
+        <ListRow title="Weight" subtitle={profile ? `${profile.weightKg} kg · log and track` : 'Log and track'} onClick={() => nav.push(<WeightScreen />)} />
         <ListRow title="Themes" subtitle={SKINS[skin].name} onClick={() => nav.push(<ThemesScreen />)} />
       </div>
       <HealthCard />

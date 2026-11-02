@@ -456,3 +456,22 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .change-row .grow { display: flex; flex-direction: column; min-width: 0; }
 .change-amount { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
 .change-amount strong { color: var(--tone); font-variant-numeric: tabular-nums; }
+
+/* Weight */
+.weigh-in { align-items: center; }
+.weigh-in .input { flex: 1; }
+.weigh-in .button { flex: none; width: auto; padding: 0 22px; }
+.weight-stats { display: flex; gap: 10px; }
+.weight-stats > div { flex: 1; display: flex; flex-direction: column; padding: 12px 14px; border-radius: 16px; background: var(--element); box-shadow: var(--shadow); }
+.weight-stats strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.weight-chart { position: relative; margin: 0; padding: 12px 8px 4px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); }
+.weight-chart svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.weight-chart .grid { stroke: var(--border); stroke-width: 1; }
+.weight-chart .axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.weight-chart .line { fill: none; stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.weight-chart .dot { fill: var(--brand); stroke: var(--element); stroke-width: 2; }
+.weight-chart .goal { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.weight-chart .cross { stroke: var(--muted); stroke-width: 1; }
+.chart-tip { position: absolute; top: 4px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; padding: 4px 8px; border-radius: 10px; background: var(--text); color: var(--bg, var(--element)); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.file-button { position: relative; display: flex; align-items: center; justify-content: center; }
+.file-button input { position: absolute; inset: 0; opacity: 0; }

@@ -1,5 +1,6 @@
 import builtIn from '@/data/exercises.json';
 import { all, run, write } from '@/db/db';
+import { equipmentOf, matchExercise, type StrongWorkout } from '@/lib/strong';
 
 // Gym: exercises (bundled free-exercise-db + the user's own), templates, and workouts.
 // Built-in exercises live only in the bundled JSON; the exercises table holds custom ones.
@@ -14,7 +15,7 @@ export type WorkoutSet = {
   id: string; exerciseId: string; exerciseOrder: number; setOrder: number;
   weightKg: number | null; reps: number | null; isWarmup: boolean; completedAt: string | null;
 };
-export type Workout = { id: string; templateId: string | null; startedAt: string; endedAt: string | null; sets: WorkoutSet[] };
+export type Workout = { id: string; templateId: string | null; name: string | null; startedAt: string; endedAt: string | null; sets: WorkoutSet[] };
 
 export const DEFAULT_REST_S = 120;
 export const MUSCLES = [...new Set(builtIn.map((e) => e.muscle))].sort();
@@ -126,8 +127,8 @@ const toSet = (r: SetRow): WorkoutSet => ({
 });
 
 async function loadWorkouts(where: string, params: unknown[] = []): Promise<Workout[]> {
-  const ws = await all<{ id: string; template_id: string | null; started_at: string; ended_at: string | null }>(
-    `SELECT id, template_id, started_at, ended_at FROM workouts WHERE deleted_at IS NULL AND ${where}`,
+  const ws = await all<{ id: string; template_id: string | null; name: string | null; started_at: string; ended_at: string | null }>(
+    `SELECT id, template_id, name, started_at, ended_at FROM workouts WHERE deleted_at IS NULL AND ${where}`,
     params,
   );
   if (ws.length === 0) return [];
@@ -137,7 +138,7 @@ async function loadWorkouts(where: string, params: unknown[] = []): Promise<Work
     ws.map((w) => w.id),
   );
   return ws.map((w) => ({
-    id: w.id, templateId: w.template_id, startedAt: w.started_at, endedAt: w.ended_at,
+    id: w.id, templateId: w.template_id, name: w.name, startedAt: w.started_at, endedAt: w.ended_at,
     sets: sets.filter((s) => s.workout_id === w.id).map(toSet),
   }));
 }
@@ -146,6 +147,9 @@ async function loadWorkouts(where: string, params: unknown[] = []): Promise<Work
 export async function activeWorkout(): Promise<Workout | null> {
   return (await loadWorkouts('ended_at IS NULL ORDER BY started_at DESC LIMIT 1'))[0] ?? null;
 }
+
+/** Finished workouts, newest first. */
+export const workoutHistory = (limit = 50) => loadWorkouts('ended_at IS NOT NULL ORDER BY started_at DESC LIMIT ?', [limit]);
 
 /** Finished workouts that started between two ISO timestamps. */
 export const finishedWorkouts = (from: string, to: string) =>
@@ -182,8 +186,8 @@ export async function startWorkout(userId: string, template: Template | null) {
   const at = now();
   const prev = await previousSets(template?.exercises.map((e) => e.exerciseId) ?? []);
   await write(['workouts', 'workout_sets'], async () => {
-    await run('INSERT INTO workouts (id, user_id, updated_at, dirty, template_id, started_at) VALUES (?, ?, ?, 1, ?, ?)', [
-      id, userId, at, template?.id ?? null, at,
+    await run('INSERT INTO workouts (id, user_id, updated_at, dirty, template_id, name, started_at) VALUES (?, ?, ?, 1, ?, ?, ?)', [
+      id, userId, at, template?.id ?? null, template?.name ?? null, at,
     ]);
     for (const [i, e] of (template?.exercises ?? []).entries()) {
       const last = prev.get(e.exerciseId)?.filter((s) => !s.isWarmup) ?? [];
@@ -278,4 +282,86 @@ export function groupSets(sets: WorkoutSet[]) {
     else groups.push({ exerciseId: s.exerciseId, exerciseOrder: s.exerciseOrder, sets: [s] });
   }
   return groups;
+}
+
+// ---- Strong import ----
+
+/** Adds Strong workouts (see lib/strong.ts): exercises matched to the list or created under Strong's name, one template
+ *  per workout name rebuilt from its latest session (unless a template of that name exists), and every workout as
+ *  history. Importing the same file twice adds nothing new: a workout's id comes from its start time and name. */
+export async function importStrong(userId: string, workouts: StrongWorkout[]) {
+  const at = now();
+  const exercises = await listExercises();
+  const templates = await listTemplates();
+  const existing = new Set((await all<{ id: string }>("SELECT id FROM workouts WHERE id LIKE 'strong:%'")).map((r) => r.id));
+  const counts = { workouts: 0, sets: 0, templates: 0, exercises: 0, skipped: 0 };
+  await write(['exercises', 'templates', 'template_exercises', 'template_sets', 'workouts', 'workout_sets'], async () => {
+    const exerciseId = new Map<string, string>();
+    for (const name of new Set(workouts.flatMap((w) => w.exercises.map((e) => e.name)))) {
+      const hit = matchExercise(name, exercises);
+      if (hit) {
+        exerciseId.set(name, hit.id);
+        continue;
+      }
+      const id = crypto.randomUUID();
+      await run(
+        'INSERT INTO exercises (id, user_id, updated_at, dirty, name, primary_muscle, equipment, is_custom) VALUES (?, ?, ?, 1, ?, ?, ?, 1)',
+        [id, userId, at, name, 'other', equipmentOf(name)],
+      );
+      exercises.push({ id, name, muscle: 'other', equipment: equipmentOf(name), image: null, custom: true });
+      exerciseId.set(name, id);
+      counts.exercises++;
+    }
+
+    const templateId = new Map<string, string>();
+    for (const name of new Set(workouts.map((w) => w.name))) {
+      const same = templates.find((t) => t.name.trim().toLowerCase() === name.trim().toLowerCase());
+      if (same) {
+        templateId.set(name, same.id);
+        continue;
+      }
+      const latest = workouts.filter((w) => w.name === name).at(-1)!;
+      const id = crypto.randomUUID();
+      templateId.set(name, id);
+      await run('INSERT INTO templates (id, user_id, updated_at, dirty, name) VALUES (?, ?, ?, 1, ?)', [id, userId, at, name]);
+      for (const [i, e] of latest.exercises.entries()) {
+        const teId = crypto.randomUUID();
+        await run(
+          'INSERT INTO template_exercises (id, user_id, updated_at, dirty, template_id, exercise_id, sort_order, rest_s) VALUES (?, ?, ?, 1, ?, ?, ?, ?)',
+          [teId, userId, at, id, exerciseId.get(e.name), i, DEFAULT_REST_S],
+        );
+        for (const [j, s] of e.sets.entries()) {
+          await run(
+            'INSERT INTO template_sets (id, user_id, updated_at, dirty, template_exercise_id, sort_order, reps, weight_kg, is_warmup) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)',
+            [crypto.randomUUID(), userId, at, teId, j, s.reps, s.weightKg, s.isWarmup ? 1 : 0],
+          );
+        }
+      }
+      counts.templates++;
+    }
+
+    for (const w of workouts) {
+      const id = `strong:${w.startedAt}:${w.name}`;
+      if (existing.has(id)) {
+        counts.skipped++;
+        continue;
+      }
+      const ended = new Date(Date.parse(w.startedAt) + Math.max(1, w.minutes) * 60_000).toISOString();
+      await run('INSERT INTO workouts (id, user_id, updated_at, dirty, template_id, name, started_at, ended_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)', [
+        id, userId, at, templateId.get(w.name) ?? null, w.name, w.startedAt, ended,
+      ]);
+      for (const [i, e] of w.exercises.entries()) {
+        for (const [j, s] of e.sets.entries()) {
+          await run(
+            `INSERT INTO workout_sets (id, user_id, updated_at, dirty, workout_id, exercise_id, exercise_order, set_order, weight_kg, reps, is_warmup, completed_at)
+             VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [crypto.randomUUID(), userId, at, id, exerciseId.get(e.name), i, j, s.weightKg, s.reps, s.isWarmup ? 1 : 0, ended],
+          );
+          counts.sets++;
+        }
+      }
+      counts.workouts++;
+    }
+  });
+  return counts;
 }
