@@ -4,6 +4,7 @@ import { Health } from '@capgo/capacitor-health';
 import { useEffect } from 'react';
 
 import { dayTargets, saveSteps } from '@/db/activity';
+import { stepsByDay } from '@/lib/burn';
 import { addDays } from '@/lib/history';
 import { localDate, targetsFor } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -38,15 +39,12 @@ export async function syncSteps(force = false) {
   lastSync = Date.now();
   const today = localDate();
   const start = new Date(`${addDays(today, -35)}T00:00`);
+  // Hourly totals added up per local date. The plugin's 'day' buckets are fixed 24 h blocks from the start time, so after
+  // a clock change they run 23:00–23:00 and each day's steps landed on the day before.
   const { samples } = await Health.queryAggregated({
-    dataType: 'steps', bucket: 'day', aggregation: 'sum', startDate: start.toISOString(), endDate: new Date().toISOString(),
+    dataType: 'steps', bucket: 'hour', aggregation: 'sum', startDate: start.toISOString(), endDate: new Date().toISOString(),
   });
-  const days = new Map<string, number>();
-  for (const s of samples) {
-    const d = localDate(new Date(s.startDate));
-    days.set(d, (days.get(d) ?? 0) + (s.values.sum ?? s.value));
-  }
-  await saveSteps(days);
+  await saveSteps(stepsByDay(samples.map((s) => ({ start: s.startDate, steps: s.values.sum ?? s.value }))), addDays(today, -35));
 }
 
 /** Targets for each of `dates` from steps + workouts (falls back to the activity level), refreshing steps first. */

@@ -11,14 +11,16 @@ import { localDate, targetsFor, type Profile } from '@/db/profile';
 
 export type DayTargets = Targets & { burn: Burn | null };
 
-/** Stores steps per local day ("YYYY-MM-DD" → steps). */
-export async function saveSteps(days: Map<string, number>) {
+/** Stores steps per local day ("YYYY-MM-DD" → steps), replacing what was stored from `from` on (days Health Connect
+ *  has nothing for are cleared, so earlier wrong values don't linger). */
+export async function saveSteps(days: Map<string, number>, from?: string) {
   const now = new Date().toISOString();
   await write(['daily_steps'], async () => {
+    if (from) await run('UPDATE daily_steps SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id >= ? AND deleted_at IS NULL', [now, now, from]);
     for (const [date, steps] of days) {
       await run(
         `INSERT INTO daily_steps (id, updated_at, dirty, steps) VALUES (?, ?, 1, ?)
-         ON CONFLICT (id) DO UPDATE SET steps = excluded.steps, updated_at = excluded.updated_at, dirty = 1`,
+         ON CONFLICT (id) DO UPDATE SET steps = excluded.steps, updated_at = excluded.updated_at, dirty = 1, deleted_at = NULL`,
         [date, now, Math.round(steps)],
       );
     }

@@ -42,3 +42,15 @@ export function dayBurn(i: {
     total: Math.round(base + walk + lift),
   };
 }
+
+/** Step buckets (ISO start times) → steps per local date "YYYY-MM-DD". */
+export function stepsByDay(buckets: { start: string; steps: number }[]) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const days = new Map<string, number>();
+  for (const b of buckets) {
+    const d = new Date(b.start);
+    const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    days.set(key, (days.get(key) ?? 0) + b.steps);
+  }
+  return days;
+}
