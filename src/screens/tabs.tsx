@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { ProfileForm } from '@/components/profile-form';
-import { useSkin } from '@/components/effects';
-import { Button, EmptyState, ListRow, Screen } from '@/components/ui';
+import { Button, EmptyState, ListRow, Page, Screen, Segmented } from '@/components/ui';
 import { clearShopList, listFoods, setShopQty } from '@/db/diet';
 import { saveProfile } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -10,10 +9,10 @@ import { connectHealth, healthStatus } from '@/lib/health';
 import { useLive } from '@/lib/use-live';
 import { supabase } from '@/lib/supabase';
 import { useNav } from '@/lib/nav';
-import { applyTheme, getThemePref, isSpecial, SKINS } from '@/lib/theme';
+import { animate } from '@/lib/motion';
+import { applyTheme, getThemePref } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
 import { SmartList } from '@/screens/shop';
-import { ThemesScreen } from '@/screens/themes';
 import { WeightScreen } from '@/screens/weight';
 
 export function ShopScreen() {
@@ -54,46 +53,74 @@ export function ShopScreen() {
   );
 }
 
+const GOAL = { lose: 'Lose', gain: 'Gain', maintain: 'Keep' } as const;
+
+/** Settings, grouped: you, appearance, connections, account. */
 export function ProfileScreen() {
-  const { userId, email, profile } = useAccount();
+  const { email, profile } = useAccount();
   const nav = useNav();
-  const skin = useSkin();
-  const [light, setLight] = useState(getThemePref() === 'light');
+  const [theme, setTheme] = useState(getThemePref);
   return (
     <Screen title="Profile">
-      <p className="muted">{email}</p>
-      <div className="list">
-        <ListRow title="Weight" subtitle={profile ? `${profile.weightKg} kg · log and track` : 'Log and track'} onClick={() => nav.push(<WeightScreen />)} />
-        <ListRow title="Themes" subtitle={SKINS[skin].name} onClick={() => nav.push(<ThemesScreen />)} />
-      </div>
-      <HealthCard />
-      <label className={isSpecial(skin) ? 'card toggle disabled' : 'card toggle'}>
-        <span>
-          Light mode
-          {isSpecial(skin) && <span className="small muted block">Set by the {SKINS[skin].name} theme</span>}
-        </span>
-        <input
-          type="checkbox"
-          role="switch"
-          checked={light}
-          disabled={isSpecial(skin)}
-          onChange={(e) => {
-            setLight(e.target.checked);
-            applyTheme(e.target.checked ? 'light' : 'dark');
-          }}
+      <section className="settings-group">
+        <h2 className="section-title">You</h2>
+        <div className="list">
+          <ListRow
+            title="Body & goal"
+            subtitle={profile ? `${GOAL[profile.goal]} weight${profile.goal === 'maintain' ? '' : ` · ${profile.rateKgWeek} kg a week`}` : 'Set up'}
+            onClick={() => nav.push(<BodyGoalScreen />)}
+          />
+          <ListRow title="Weight" subtitle={profile ? `${profile.weightKg} kg · log and track` : 'Log and track'} onClick={() => nav.push(<WeightScreen />)} />
+        </div>
+      </section>
+
+      <section className="settings-group">
+        <h2 className="section-title">Appearance</h2>
+        <Segmented
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] as const}
+          value={theme}
+          onChange={(t) => animate('fade', () => { setTheme(t); applyTheme(t); })}
         />
-      </label>
+      </section>
+
+      <section className="settings-group">
+        <h2 className="section-title">Connections</h2>
+        <HealthCard />
+      </section>
+
+      <section className="settings-group">
+        <h2 className="section-title">Account</h2>
+        <div className="list">
+          <div className="list-row">
+            <span>
+              <span className="list-title">Signed in</span>
+              <span className="small muted">{email}</span>
+            </span>
+          </div>
+          <button type="button" className="list-row danger" onClick={() => confirm('Sign out?') && supabase.auth.signOut()}>
+            <span className="list-title">Sign out</span>
+          </button>
+        </div>
+      </section>
+      <p className="small muted center">Version {BUNDLE}</p>
+    </Screen>
+  );
+}
+
+function BodyGoalScreen() {
+  const { userId, profile } = useAccount();
+  const nav = useNav();
+  return (
+    <Page title="Body & goal">
       <ProfileForm
         initial={profile}
         submitLabel="Save"
         onSubmit={async (p) => {
           await saveProfile(userId, p, profile?.weightKg);
-          alert('Saved');
+          nav.pop();
         }}
       />
-      <Button title="Sign out" variant="secondary" onClick={() => supabase.auth.signOut()} />
-      <p className="small muted center">Version {BUNDLE}</p>
-    </Screen>
+    </Page>
   );
 }
 

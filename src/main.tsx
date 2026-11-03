@@ -5,7 +5,6 @@ import { App } from '@/App';
 import { openDb } from '@/db/db';
 import { applyTheme } from '@/lib/theme';
 import './styles.css';
-import './themes.css';
 
 applyTheme();
 const root = createRoot(document.getElementById('root')!);

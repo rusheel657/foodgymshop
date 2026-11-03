@@ -16,7 +16,7 @@ import { useLive } from '@/lib/use-live';
 import { MyDietScreen } from '@/screens/diet';
 import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
-import { AnalyzeScreen, LogFormScreen, newLog } from '@/screens/log';
+import { AnalyzeScreen, LogFormScreen, QuickLogScreen } from '@/screens/log';
 import { horizon, ShoppingScreen, useShopping } from '@/screens/shop';
 import { WeightScreen } from '@/screens/weight';
 
@@ -66,12 +66,12 @@ function Ring({ value, max, size, stroke, className, dashed, children }: {
   );
 }
 
-export function FoodScreen() {
+/** `adding`: the add-food sheet, opened from the + in the tab bar. */
+export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boolean; setAdding: (open: boolean) => void }) {
   const { profile } = useAccount();
   const nav = useNav();
   const today = localDate();
   const [date, setDate] = useState(today);
-  const [sheet, setSheet] = useState(false);
   const week = weekOf(date);
   const logs = useLive(() => listLogs(date), LOG_TABLES, [date]);
   const days = useLive(() => dailyTotals(addDays(today, -120), addDays(today, 1)), LOG_TABLES, [today]);
@@ -219,12 +219,6 @@ export function FoodScreen() {
         />
       </div>
 
-      <button type="button" className="fab" aria-label="Add food" onClick={() => setSheet(true)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
-
       {sheet && (
         <div className="sheet-backdrop" onClick={() => setSheet(false)}>
           <div className="sheet" role="dialog" aria-label="Add food" onClick={(e) => e.stopPropagation()}>
@@ -232,7 +226,7 @@ export function FoodScreen() {
             <div className="sheet-grid">
               {canUseCamera && <SheetAction label="Scan meal" icon="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0" onClick={() => photo('camera')} />}
               {canUseCamera && <SheetAction label="From gallery" icon="M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4M15 9h.01" onClick={() => photo('gallery')} />}
-              <SheetAction label="Quick add" icon="M5 6h14M5 12h14M5 18h9" onClick={() => open(<LogFormScreen log={newLog(loggedAt)} isNew />)} />
+              <SheetAction label="Quick add" icon="M5 6h14M5 12h14M5 18h9" onClick={() => open(<QuickLogScreen loggedAt={loggedAt} />)} />
               <SheetAction label="What should I eat?" icon="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9V16h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3z" onClick={() => open(<SuggestScreen remaining={remaining} loggedAt={loggedAt} />)} />
             </div>
           </div>
@@ -302,12 +296,28 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
   const burn = t.burn!;
   const n = (v: number) => Math.round(v).toLocaleString();
   const diff = t.kcal - burn.total;
+  const [open, setOpen] = useState(() => localStorage.getItem('burn-open') === '1');
+  const toggle = () =>
+    animate('fade', () => {
+      localStorage.setItem('burn-open', open ? '0' : '1');
+      setOpen(!open);
+    });
   return (
-    <section className="burn-card">
-      <div className="burn-row burn-head">
-        <h2 className="burn-title">{today ? 'Calories today' : 'Calories that day'}</h2>
-        <small>kcal</small>
-      </div>
+    <section className={open ? 'burn-card open' : 'burn-card'}>
+      <button type="button" className="burn-row burn-head" aria-expanded={open} onClick={toggle}>
+        <span>
+          <span className="burn-title">{today ? 'Calories today' : 'Calories that day'}</span>
+          {!open && <small>You burn {n(burn.total)} · eat {n(t.kcal)}</small>}
+        </span>
+        <span className="burn-toggle">
+          {open && <small>kcal</small>}
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <>
       <div className="burn-row">
         <span>
           Your body
@@ -343,6 +353,8 @@ function BurnCard({ t, today, goal }: { t: DayTargets; today: boolean; goal: str
         <span>Eat</span>
         <b>{n(t.kcal)}</b>
       </div>
+        </>
+      )}
     </section>
   );
 }

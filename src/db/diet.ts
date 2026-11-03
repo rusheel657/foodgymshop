@@ -18,6 +18,7 @@ export type Food = Macros & {
   dailyMaxGrams: number | null;
   minGrams: number | null; // smallest portion worth suggesting
   pairsWith: string[]; // food ids it's only eaten with (yoghurt → honey, fruit, chocolate)
+  photo: string | null; // file URI of its photo
   disabled: boolean; // switched off in My Diet; past entries keep their own copy of its macros either way
 };
 
@@ -29,7 +30,7 @@ type FoodRow = {
   default_grams: number | null; source: Food['source']; source_id: string | null; barcode: string | null;
   shop_unit: string | null; shop_qty: number; at_home: number; home_grams: number | null;
   piece_grams: number | null; daily_max_grams: number | null;
-  min_grams: number | null; pairs_with: string; disabled: number;
+  min_grams: number | null; pairs_with: string; disabled: number; photo_path: string | null;
 };
 
 /** Foods in use; `withDisabled` also returns the ones switched off (My Diet, editing old entries). */
@@ -42,7 +43,7 @@ export async function listFoods(withDisabled = false): Promise<Food[]> {
     defaultGrams: r.default_grams, source: r.source, sourceId: r.source_id, barcode: r.barcode,
     shopUnit: r.shop_unit, shopQty: r.shop_qty, atHome: !!r.at_home, homeGrams: r.home_grams,
     pieceGrams: r.piece_grams, dailyMaxGrams: r.daily_max_grams,
-    minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with), disabled: !!r.disabled,
+    minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with), disabled: !!r.disabled, photo: r.photo_path,
   }));
 }
 
@@ -51,17 +52,17 @@ export async function saveFood(userId: string, f: Food) {
     run(
       `INSERT INTO foods (id, user_id, updated_at, dirty, name, kcal_100g, protein_100g, carbs_100g, fat_100g,
                           default_grams, source, source_id, barcode, shop_unit, shop_qty, piece_grams, daily_max_grams,
-                          min_grams, pairs_with)
-       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          min_grams, pairs_with, photo_path)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET
          updated_at = excluded.updated_at, dirty = 1, name = excluded.name,
          kcal_100g = excluded.kcal_100g, protein_100g = excluded.protein_100g, carbs_100g = excluded.carbs_100g,
          fat_100g = excluded.fat_100g, default_grams = excluded.default_grams, shop_unit = excluded.shop_unit,
          piece_grams = excluded.piece_grams, daily_max_grams = excluded.daily_max_grams,
-         min_grams = excluded.min_grams, pairs_with = excluded.pairs_with`,
+         min_grams = excluded.min_grams, pairs_with = excluded.pairs_with, photo_path = excluded.photo_path`,
       [f.id, userId, new Date().toISOString(), f.name, f.kcal, f.protein, f.carbs, f.fat, f.defaultGrams,
         f.source, f.sourceId, f.barcode, f.shopUnit, f.shopQty, f.pieceGrams, f.dailyMaxGrams,
-        f.minGrams, JSON.stringify(f.pairsWith)],
+        f.minGrams, JSON.stringify(f.pairsWith), f.photo],
     ),
   );
 }
@@ -81,6 +82,12 @@ export async function deleteFood(id: string) {
 export async function setDisabled(id: string, disabled: boolean) {
   await write(['foods'], () =>
     run('UPDATE foods SET disabled = ?, updated_at = ?, dirty = 1 WHERE id = ?', [disabled ? 1 : 0, new Date().toISOString(), id]),
+  );
+}
+
+export async function setFoodPhoto(id: string, uri: string | null) {
+  await write(['foods'], () =>
+    run('UPDATE foods SET photo_path = ?, updated_at = ?, dirty = 1 WHERE id = ?', [uri, new Date().toISOString(), id]),
   );
 }
 

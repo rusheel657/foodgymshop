@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { FoodGrid, LinkIcon } from '@/components/food-grid';
 import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, TextInput } from '@/components/ui';
 import {
   deleteFood, deleteMeal, listFoods, listMeals, mealMacros, saveFood, saveMeal, setDisabled, type Food, type Meal,
@@ -10,13 +11,14 @@ import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
+import { pairLinks } from '@/lib/pairs';
 import { useLive } from '@/lib/use-live';
 
 const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], disabled: false, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], disabled: false, photo: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -30,16 +32,12 @@ export function MyDietScreen() {
       <section className="stack-sm">
         <SectionHead title="Foods" action="+ Add" onAction={() => nav.push(<AddFoodScreen />)} />
         {foods.length === 0 && <EmptyState text="Add the foods you eat regularly." />}
-        <div className="list">
-          {foods.filter((f) => !f.disabled).map((f) => (
-            <ListRow
-              key={f.id}
-              title={f.name}
-              subtitle={`100 g · ${formatMacros(f)}`}
-              onClick={() => nav.push(<FoodFormScreen food={f} />)}
-            />
-          ))}
-        </div>
+        {foods.some((f) => f.pairsWith.length) && (
+          <p className="small muted link-legend">
+            <LinkIcon /> <b>With</b> = only eaten together with those foods · <b>Goes with</b> = other foods need this one
+          </p>
+        )}
+        <FoodGrid foods={foods.filter((f) => !f.disabled)} links={foods} onPick={(f) => nav.push(<FoodFormScreen food={f} />)} />
       </section>
       {off.length > 0 && (
         <section className="stack-sm">
@@ -217,6 +215,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
+  const [photo, setPhoto] = useState(food.photo);
   const allFoods = useLive(() => listFoods(true), ['foods']);
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
 
@@ -248,10 +247,22 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
-      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, pairsWith: pairs,
+      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, pairsWith: pairs, photo,
     });
+    // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
+    if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
     nav.pop(popCount);
   }
+
+  async function pickPhoto(from: 'camera' | 'gallery') {
+    try {
+      const uri = await addPhoto(from);
+      if (uri) setPhoto(uri);
+    } catch (e) {
+      if (!/cancel/i.test((e as Error).message)) alert((e as Error).message);
+    }
+  }
+  const neededBy = allFoods ? pairLinks(allFoods).neededBy(food.id) : [];
 
   async function toggle() {
     await setDisabled(food.id, !food.disabled);
@@ -269,6 +280,26 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       {notice && <p className="small muted">{notice}</p>}
       <Field label="Name">
         <TextInput label="Name" value={d.name} onChange={(name) => set({ name })} placeholder="e.g. Lamb mince" />
+      </Field>
+      <Field label="Photo" hint="Shown on its card in Quick add and My Diet.">
+        {photo && (
+          <div className="thumbs">
+            <div className="thumb">
+              <img src={photoSrc(photo)} alt={d.name || 'Food'} />
+              <button type="button" className="icon-button" aria-label="Remove photo" onClick={() => setPhoto(null)}>
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+        {canUseCamera ? (
+          <div className="row">
+            <Button title={photo ? 'Retake' : 'Take photo'} variant="secondary" onClick={() => pickPhoto('camera')} />
+            <Button title="From gallery" variant="secondary" onClick={() => pickPhoto('gallery')} />
+          </div>
+        ) : (
+          <span className="small muted">Photos work in the Android app.</span>
+        )}
       </Field>
       <Field label="Per 100 g">
         <div className="grid-2">
@@ -290,7 +321,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       <Field label="Smallest portion" hint="Optional. What should I eat? either leaves it out or gives you at least this much.">
         <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece)} placeholder="none" />
       </Field>
-      <Field label="Only eat with" hint="Optional. What should I eat? only suggests this food together with all of these.">
+      <Field label="Only eat with" hint="Optional. Quick add reminds you to add these, and What should I eat? only suggests this food together with all of them.">
         {allFoods && pairs.length > 0 && (
           <div className="list">
             {pairs.map((id) => (
@@ -321,6 +352,14 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           />
         )}
       </Field>
+      {neededBy.length > 0 && (
+        <p className="pair-hint">
+          <LinkIcon />
+          <span className="grow">
+            Goes with <strong>{neededBy.map((f) => f.name).join(' + ')}</strong>, which {neededBy.length === 1 ? 'is' : 'are'} only eaten with this.
+          </span>
+        </p>
+      )}
       <Field label="Shopping unit" hint="Optional, e.g. pack, kg, dozen.">
         <TextInput label="Shopping unit" value={d.shopUnit} onChange={(shopUnit) => set({ shopUnit })} />
       </Field>
@@ -484,11 +523,7 @@ export function FoodPickerScreen({ foods, onPick }: { foods: Food[]; onPick: (fo
   return (
     <Page title="Choose food">
       {foods.length === 0 && <EmptyState text="Add foods in My Diet first." />}
-      <div className="list">
-        {foods.map((f) => (
-          <ListRow key={f.id} title={f.name} subtitle={`100 g · ${formatMacros(f)}`} onClick={() => onPick(f)} />
-        ))}
-      </div>
+      <FoodGrid foods={foods} onPick={onPick} />
     </Page>
   );
 }

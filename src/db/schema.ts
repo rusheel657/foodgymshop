@@ -171,4 +171,6 @@ export const MIGRATIONS: string[] = [
   );`,
   // 10: a workout's own name (its template's, or the workout name from a Strong import).
   `ALTER TABLE workouts ADD COLUMN name TEXT;`,
+  // 11: a photo of the food (file URI in app storage), shown on its card in Quick add and My Diet.
+  `ALTER TABLE foods ADD COLUMN photo_path TEXT;`,
 ];

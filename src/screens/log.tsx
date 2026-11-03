@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { LinkIcon, FoodGrid } from '@/components/food-grid';
 import { Button, EmptyState, ListRow, NumberInput, num, Page, SectionHead } from '@/components/ui';
 import { listFoods, listMeals, mealMacros, type Food, type Meal } from '@/db/diet';
 import { deleteLog, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
@@ -11,6 +12,7 @@ import {
 import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
 import { BUTTER_PER_GRAM } from '@/lib/suggest';
+import { pairLinks } from '@/lib/pairs';
 import { useLive } from '@/lib/use-live';
 import { FoodPickerScreen } from '@/screens/diet';
 
@@ -95,6 +97,55 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
           />
         </>
       )}
+    </Page>
+  );
+}
+
+/** Quick add: tap the foods you ate on their cards, then set amounts on the next screen. */
+export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
+  const nav = useNav();
+  const foods = useLive(() => listFoods(), ['foods']);
+  const [picked, setPicked] = useState<string[]>([]);
+  if (!foods) return null;
+  const links = pairLinks(foods);
+  const chosen = picked.flatMap((id) => foods.find((f) => f.id === id) ?? []);
+  // Picked foods that are only eaten with others not picked yet, e.g. yoghurt without its honey.
+  const hints = chosen
+    .map((f) => ({ food: f, missing: links.needs(f.id).filter((p) => !picked.includes(p.id)) }))
+    .filter((h) => h.missing.length > 0);
+  const wanted = new Set(hints.flatMap((h) => h.missing.map((f) => f.id)));
+  const toggle = (f: Food) => setPicked((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]));
+  const next = (items: LogItem[]) => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
+
+  return (
+    <Page title="Quick add">
+      {foods.length === 0 ? (
+        <EmptyState text="Add foods in My Diet first." />
+      ) : (
+        <p className="small muted">Tap what you ate. You set the amounts next.</p>
+      )}
+      {hints.map((h) => (
+        <div key={h.food.id} className="pair-hint">
+          <LinkIcon />
+          <span className="grow">
+            <strong>{h.food.name}</strong> goes with {h.missing.map((f) => f.name).join(' + ')}
+          </span>
+          <button type="button" className="button primary small" onClick={() => setPicked((p) => [...p, ...h.missing.map((f) => f.id)])}>
+            Add
+          </button>
+        </div>
+      ))}
+      <FoodGrid foods={foods} picked={new Map(picked.map((id) => [id, 1]))} wanted={wanted} onPick={toggle} />
+      <button type="button" className="link" onClick={() => next([])}>
+        Saved meal or something not in My Diet
+      </button>
+      <div className="pick-bar">
+        <Button
+          title={chosen.length ? `Next · ${chosen.length} food${chosen.length === 1 ? '' : 's'}` : 'Tap foods to add them'}
+          disabled={!chosen.length}
+          onClick={() => next(chosen.map((f) => fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100)))}
+        />
+      </div>
     </Page>
   );
 }
