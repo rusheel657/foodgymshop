@@ -1,23 +1,9 @@
 
-  VITE v8.3.5  ready in 197 ms
+  VITE v8.3.5  ready in 141 ms
 
   ➜  Local:   http://localhost:5174/
   ➜  Network: use --host to expose
-8:35:17 PM [vite] (client) [console.warn] Photo lookup for Blueberries failed TypeError: Failed to fetch
-    at CapacitorHttpPluginWeb.request (http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:385:26)
-    at CapacitorHttpPluginWeb.get (http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:418:15)
-    at http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:86:17
-    at async getJson (http://localhost:5174/src/lib/food-photo.ts:7:14)
-    at async findPhotoUrl (http://localhost:5174/src/lib/food-photo.ts:21:14)
-    at async findMissingPhotos (http://localhost:5174/src/lib/food-photo.ts:82:17)
-8:35:17 PM [vite] (client) [console.warn] Photo lookup for Greek Yoghurt failed TypeError: Failed to fetch
-    at CapacitorHttpPluginWeb.request (http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:385:26)
-    at CapacitorHttpPluginWeb.get (http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:418:15)
-    at http://localhost:5174/node_modules/.vite/deps/@capacitor_core.js?v=2c49f251:86:17
-    at async getJson (http://localhost:5174/src/lib/food-photo.ts:7:14)
-    at async findPhotoUrl (http://localhost:5174/src/lib/food-photo.ts:21:14)
-    at async findMissingPhotos (http://localhost:5174/src/lib/food-photo.ts:82:17)
-8:35:18 PM [vite] (client) [Unhandled rejection] InvalidStateError: Transition was aborted because of invalid state. Viewport size changed
+9:01:56 PM [vite] (client) [Unhandled rejection] InvalidStateError: Transition was aborted because of invalid state. Viewport size changed
 
-8:35:20 PM [vite] (client) [Unhandled rejection] InvalidStateError: Transition was aborted because of invalid state. Viewport size changed
+9:02:02 PM [vite] (client) [Unhandled rejection] InvalidStateError: Transition was aborted because of invalid state. Viewport size changed
 

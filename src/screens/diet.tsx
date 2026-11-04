@@ -12,6 +12,8 @@ import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type F
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
 import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
+import { findPrice } from '@/lib/food-price';
+import { namesMatch } from '@/lib/match';
 import { pairLinks } from '@/lib/pairs';
 import { useLive } from '@/lib/use-live';
 
@@ -291,6 +293,30 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       setFinding(false);
     }
   }
+  const [priceNote, setPriceNote] = useState<string | null>(null);
+  const [pricing, setPricing] = useState(false);
+  async function findPriceOnline() {
+    setPricing(true);
+    setPriceNote(null);
+    try {
+      // Its own barcode, else the matching Open Food Facts products.
+      const own = food.barcode ?? (food.source === 'off' ? food.sourceId : null);
+      const name = d.name.trim() || food.name;
+      const codes = own ? [own] : (await searchOff(name)).filter((r) => r.barcode && namesMatch(name, r.name)).slice(0, 10).map((r) => r.barcode!);
+      const found = await findPrice(codes);
+      if (!found) return setPriceNote('No UK price found in Open Prices. Enter it from your receipt.');
+      set(found.packGrams ? { price: String(found.price), pack: showAmount(found.packGrams, piece) } : { price: String(found.price) });
+      const when = new Date(`${found.date}T12:00`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+      setPriceNote(
+        `£${found.price.toFixed(2)}${found.packGrams ? ` for ${found.packGrams} g` : ''}${found.store ? ` at ${found.store}` : ''} on ${when}, from Open Prices. Check it matches what you buy.` +
+          (found.packGrams || pack !== null ? '' : ' Enter the shopping size too.'),
+      );
+    } catch (e) {
+      setPriceNote((e as Error).message);
+    } finally {
+      setPricing(false);
+    }
+  }
   const neededBy = allFoods ? pairLinks(allFoods).neededBy(food.id) : [];
 
   async function toggle() {
@@ -342,6 +368,8 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       </Field>
       <Field label="Price" hint="Optional. What one pack costs. Your meals on the Food screen show what they cost.">
         <NumberInput label="Price" value={d.price} onChange={(p) => set({ price: p })} suffix="£ a pack" placeholder="none" />
+        <Button title="Find price online" variant="secondary" onClick={findPriceOnline} busy={pricing} />
+        {priceNote && <p className="small muted">{priceNote}</p>}
       </Field>
       <Field label="Usual portion" hint="Optional. Used when you add this food to a meal.">
         <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix="g" />
