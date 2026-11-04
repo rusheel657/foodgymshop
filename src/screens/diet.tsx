@@ -10,7 +10,7 @@ import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
-import { searchUsda, type UsdaFood } from '@/lib/supabase';
+import { estimatePrice, searchUsda, type UsdaFood } from '@/lib/supabase';
 import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
 import { findPrice } from '@/lib/food-price';
 import { namesMatch } from '@/lib/match';
@@ -304,7 +304,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       const name = d.name.trim() || food.name;
       const codes = own ? [own] : (await searchOff(name)).filter((r) => r.barcode && namesMatch(name, r.name)).slice(0, 10).map((r) => r.barcode!);
       const found = await findPrice(codes);
-      if (!found) return setPriceNote('No UK price found in Open Prices. Enter it from your receipt.');
+      if (!found) return await estimateWithAi(name);
       set(found.packGrams ? { price: String(found.price), pack: showAmount(found.packGrams, piece) } : { price: String(found.price) });
       const when = new Date(`${found.date}T12:00`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
       setPriceNote(
@@ -316,6 +316,16 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     } finally {
       setPricing(false);
     }
+  }
+  // Open Prices had nothing: ask Gemini for its estimate.
+  async function estimateWithAi(name: string) {
+    const est = await estimatePrice(name, pack !== null && pack > 0 ? pack : null);
+    if (!est) return setPriceNote('No UK price found. Enter it from your receipt.');
+    set(est.packGrams ? { price: String(est.price), pack: showAmount(est.packGrams, piece) } : { price: String(est.price) });
+    setPriceNote(
+      `About £${est.price.toFixed(2)}${est.packGrams ? ` for ${est.packGrams} g` : ''}${est.store ? ` at ${est.store}` : ''}, an AI estimate rather than a live price. Check it against your receipt.` +
+        (est.packGrams || pack !== null ? '' : ' Enter the shopping size too.'),
+    );
   }
   const neededBy = allFoods ? pairLinks(allFoods).neededBy(food.id) : [];
 

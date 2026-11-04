@@ -79,3 +79,21 @@ export async function analyzeMeal(body: {
   }
   return data?.items ?? [];
 }
+
+export type PriceEstimate = { price: number; packGrams: number | null; store: string | null };
+
+/** Gemini's estimate of a food's UK supermarket price, via the estimate-price Edge Function. Null if it has none. */
+export async function estimatePrice(name: string, packGrams: number | null): Promise<PriceEstimate | null> {
+  const { data, error } = await supabase.functions.invoke<{ estimate: PriceEstimate | null }>('estimate-price', { body: { name, packGrams } });
+  if (error) {
+    const text = await (error.context as Response | undefined)?.text?.().catch(() => '');
+    let detail = error.message;
+    try {
+      detail = JSON.parse(text ?? '').error ?? detail;
+    } catch {
+      // not JSON: keep the client's message
+    }
+    throw new Error(`Price search failed: ${detail}`);
+  }
+  return data?.estimate ?? null;
+}
