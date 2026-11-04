@@ -167,7 +167,7 @@ export function SmartList() {
               </span>
               <span className="buy-amount">
                 <strong>{amountLabel(b.grams, f.pieceGrams)}</strong>
-                {f.shopUnit && <span className="small muted">{f.shopUnit}</span>}
+                {f.packGrams !== null && <span className="small muted">{amountLabel(f.packGrams, f.pieceGrams)} pack</span>}
               </span>
             </label>
           );

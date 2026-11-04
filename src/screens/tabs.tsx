@@ -10,6 +10,7 @@ import { useLive } from '@/lib/use-live';
 import { supabase } from '@/lib/supabase';
 import { useNav } from '@/lib/nav';
 import { animate } from '@/lib/motion';
+import { amountLabel } from '@/lib/nutrition';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { BUNDLE } from '@/lib/updater';
 import { SmartList } from '@/screens/shop';
@@ -28,7 +29,7 @@ export function ShopScreen() {
           <div key={f.id} className={f.shopQty > 0 ? 'shop-row active' : 'shop-row'}>
             <span>
               <span className="list-title">{f.name}</span>
-              {f.shopUnit && <span className="small muted">{f.shopUnit}</span>}
+              {f.packGrams !== null && <span className="small muted">{amountLabel(f.packGrams, f.pieceGrams)} pack</span>}
             </span>
             <span className="stepper">
               <button

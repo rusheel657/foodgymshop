@@ -178,4 +178,10 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE foods ADD COLUMN max_grams REAL;
   ALTER TABLE foods ADD COLUMN price_100g REAL;
   `,
+  // 13: shopping size (grams, or ml, in one pack) and the price of one pack; replace shop_unit and price_100g.
+  `
+  ALTER TABLE foods ADD COLUMN pack_grams REAL;
+  ALTER TABLE foods ADD COLUMN pack_price REAL;
+  UPDATE foods SET pack_grams = 1000, pack_price = price_100g * 10 WHERE price_100g IS NOT NULL;
+  `,
 ];

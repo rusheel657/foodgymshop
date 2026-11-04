@@ -10,7 +10,6 @@ import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
-import { shownPrice, toPrice100 } from '@/lib/price';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
 import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
 import { pairLinks } from '@/lib/pairs';
@@ -20,7 +19,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, price100: null, pairsWith: [], disabled: false, photo: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null, pairsWith: [], disabled: false, photo: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -211,12 +210,12 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     carbs: isNew && !food.name ? '' : str(food.carbs),
     fat: isNew && !food.name ? '' : str(food.fat),
     defaultGrams: str(food.defaultGrams),
-    shopUnit: food.shopUnit ?? '',
+    pack: food.packGrams === null ? '' : showAmount(food.packGrams, food.pieceGrams),
     pieceGrams: str(food.pieceGrams),
     dailyMax: food.dailyMaxGrams === null ? '' : showAmount(food.dailyMaxGrams, food.pieceGrams),
     min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
     max: food.maxPortionGrams === null ? '' : showAmount(food.maxPortionGrams, food.pieceGrams),
-    price: food.price100 === null ? '' : String(shownPrice(food.price100, food.pieceGrams)),
+    price: str(food.packPrice),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
   const [photo, setPhoto] = useState(food.photo);
@@ -229,6 +228,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   const limit = d.dailyMax.trim() === '' ? null : toGrams(num(d.dailyMax), piece);
   const min = d.min.trim() === '' ? null : toGrams(num(d.min), piece);
   const max = d.max.trim() === '' ? null : toGrams(num(d.max), piece);
+  const pack = d.pack.trim() === '' ? null : toGrams(num(d.pack), piece);
   const price = d.price.trim() === '' ? null : num(d.price);
   const error = !d.name.trim()
     ? 'Give it a name.'
@@ -252,15 +252,18 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
                       ? 'Largest portion must be more than 0 and at most 5000 g.'
                       : max !== null && min !== null && min > max
                         ? 'Smallest portion can’t be more than the largest.'
-                        : price !== null && !(price >= 0 && price <= 1000)
-                          ? 'Price must be £0–1000.'
-                          : null;
+                        : pack !== null && !(pack > 0 && pack <= 50000)
+                          ? 'Shopping size must be more than 0 and at most 50000 g.'
+                          : price !== null && !(price >= 0 && price <= 1000)
+                            ? 'Price must be £0–1000.'
+                            : price !== null && pack === null
+                              ? 'Enter the shopping size too, so the price can be split per portion.'
+                              : null;
 
   async function save() {
     await saveFood(userId, {
-      ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
+      ...food, ...macros, name: d.name.trim(), defaultGrams: grams, packGrams: pack, packPrice: price,
       pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo,
-      price100: price === null ? null : toPrice100(price, piece),
     });
     // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
     if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
@@ -334,8 +337,11 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           <NumberInput label="Fat" value={d.fat} onChange={(fat) => set({ fat })} suffix="g F" />
         </div>
       </Field>
-      <Field label="Price" hint={piece ? 'Optional. What one piece costs. Your meals on the Food screen show what they cost.' : 'Optional. Price per kg, as on the shelf label. Your meals on the Food screen show what they cost.'}>
-        <NumberInput label="Price" value={d.price} onChange={(p) => set({ price: p })} suffix={piece ? '£ each' : '£ per kg'} placeholder="none" />
+      <Field label="Shopping size" hint={piece ? 'Optional. How many pieces come in one pack you buy.' : 'Optional. Grams (or ml for drinks) in one pack you buy, e.g. 500 for a 500 g tub.'}>
+        <NumberInput label="Shopping size" value={d.pack} onChange={(p) => set({ pack: p })} suffix={piece ? 'pcs a pack' : 'g or ml a pack'} placeholder="none" />
+      </Field>
+      <Field label="Price" hint="Optional. What one pack costs. Your meals on the Food screen show what they cost.">
+        <NumberInput label="Price" value={d.price} onChange={(p) => set({ price: p })} suffix="£ a pack" placeholder="none" />
       </Field>
       <Field label="Usual portion" hint="Optional. Used when you add this food to a meal.">
         <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix="g" />
@@ -391,9 +397,6 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           </span>
         </p>
       )}
-      <Field label="Shopping unit" hint="Optional, e.g. pack, kg, dozen.">
-        <TextInput label="Shopping unit" value={d.shopUnit} onChange={(shopUnit) => set({ shopUnit })} />
-      </Field>
       <p className="small muted">
         {food.sourceId === 'ai-groceries' ? 'AI estimate from a grocery photo; check it against the label' : SOURCE[food.source]}
         {food.barcode && ` · barcode ${food.barcode}`}
