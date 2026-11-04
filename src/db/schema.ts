@@ -173,4 +173,9 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN name TEXT;`,
   // 11: a photo of the food (file URI in app storage), shown on its card in Quick add and My Diet.
   `ALTER TABLE foods ADD COLUMN photo_path TEXT;`,
+  // 12: largest portion What should I eat? may suggest (grams), and what the food costs (per 100 g).
+  `
+  ALTER TABLE foods ADD COLUMN max_grams REAL;
+  ALTER TABLE foods ADD COLUMN price_100g REAL;
+  `,
 ];

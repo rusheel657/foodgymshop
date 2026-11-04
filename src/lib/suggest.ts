@@ -110,14 +110,15 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
   return out;
 }
 
-/** Cap on how much of one food a suggestion may use: twice your usual portion, else 300 g (50 g for dense foods like
- *  honey, chocolate, butter); never more than you have at home (`homeGrams`) or than is left of your daily limit
- *  (`limitLeft`, already minus what you ate today). null = not limited. */
+/** Cap on how much of one food a suggestion may use: your largest portion (`maxPortion`), else twice your usual
+ *  portion, else 300 g (50 g for dense foods like honey, chocolate, butter); never more than you have at home
+ *  (`homeGrams`) or than is left of your daily limit (`limitLeft`, already minus what you ate today). null = not limited. */
 export function maxGramsFor(
   kcalPer100: number, usual?: number, homeGrams: number | null = null, limitLeft: number | null = null, minGrams: number | null = null,
+  maxPortion: number | null = null,
 ) {
   // Your own smallest portion beats the automatic cap, never the hard limits.
-  const cap = Math.max(usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300, minGrams ?? 0);
+  const cap = Math.max(maxPortion ?? (usual ? Math.max(50, usual * 2) : kcalPer100 > 300 ? 50 : 300), minGrams ?? 0);
   return Math.max(0, Math.min(cap, homeGrams ?? Infinity, limitLeft ?? Infinity));
 }
 

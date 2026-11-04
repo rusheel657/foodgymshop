@@ -43,7 +43,7 @@ async function loadShopping(profile: Profile, days: number) {
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   // At home: up to what you have. "Any" has no amount, so it counts as a normal portion cap for each day
   // (otherwise 500 g of honey would look like a plan).
-  const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, undefined, null, null, f.minGrams);
+  const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, undefined, null, null, f.minGrams, f.maxPortionGrams);
   const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? capForSpan(f), limitLeft(f)) : 0);
   // Butter counts as a food too (its fat is real food at home), besides being cooking butter for chicken and eggs.
   const stock = foods.filter((f) => f.atHome).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));

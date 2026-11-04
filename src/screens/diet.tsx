@@ -19,7 +19,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, pairsWith: [], disabled: false, photo: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopUnit: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, price100: null, pairsWith: [], disabled: false, photo: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -214,6 +214,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     pieceGrams: str(food.pieceGrams),
     dailyMax: food.dailyMaxGrams === null ? '' : showAmount(food.dailyMaxGrams, food.pieceGrams),
     min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
+    max: food.maxPortionGrams === null ? '' : showAmount(food.maxPortionGrams, food.pieceGrams),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
   const [photo, setPhoto] = useState(food.photo);
@@ -225,6 +226,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   const piece = d.pieceGrams.trim() === '' ? null : num(d.pieceGrams);
   const limit = d.dailyMax.trim() === '' ? null : toGrams(num(d.dailyMax), piece);
   const min = d.min.trim() === '' ? null : toGrams(num(d.min), piece);
+  const max = d.max.trim() === '' ? null : toGrams(num(d.max), piece);
   const error = !d.name.trim()
     ? 'Give it a name.'
     : !(macros.kcal >= 0 && macros.kcal <= 900)
@@ -243,12 +245,16 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
                   ? 'Smallest portion must be more than 0 and at most 5000 g.'
                   : min !== null && limit !== null && min > limit
                     ? 'Smallest portion can’t be more than the daily limit.'
-                    : null;
+                    : max !== null && !(max > 0 && max <= 5000)
+                      ? 'Largest portion must be more than 0 and at most 5000 g.'
+                      : max !== null && min !== null && min > max
+                        ? 'Smallest portion can’t be more than the largest.'
+                        : null;
 
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
-      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, pairsWith: pairs, photo,
+      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo,
     });
     // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
     if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
@@ -333,6 +339,9 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       </Field>
       <Field label="Smallest portion" hint="Optional. What should I eat? either leaves it out or gives you at least this much.">
         <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece)} placeholder="none" />
+      </Field>
+      <Field label="Largest portion" hint="Optional. The most What should I eat? suggests at once. Without it, that's about twice your usual portion.">
+        <NumberInput label="Largest portion" value={d.max} onChange={(m) => set({ max: m })} suffix={unitOf(piece)} placeholder="auto" />
       </Field>
       <Field label="Only eat with" hint="Optional. Quick add reminds you to add these, and What should I eat? only suggests this food together with all of them.">
         {allFoods && pairs.length > 0 && (

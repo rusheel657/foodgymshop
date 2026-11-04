@@ -5,11 +5,12 @@ import { Button, EmptyState, ListRow, NumberInput, num, Page, SectionHead } from
 import { listFoods, listMeals, mealMacros, type Food, type Meal } from '@/db/diet';
 import { deleteLog, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
 import { useAccount } from '@/lib/account';
+import { lookupBarcode, scanBarcode } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
 import {
   correctionNote, diffCorrections, formatMacros, macrosFor, showAmount, sumMacros, toGrams, toLogItems, unitOf, type LogItem,
 } from '@/lib/nutrition';
-import { deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
+import { canUseCamera, deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { analyzeMeal } from '@/lib/supabase';
 import { BUTTER_PER_GRAM } from '@/lib/suggest';
 import { pairLinks } from '@/lib/pairs';
@@ -24,6 +25,27 @@ const fromFood = (f: Food, grams: number): LogItem => ({
   foodId: f.id, name: f.name, grams, verified: true,
   per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
 });
+
+/** A one-off item from a scanned barcode: your My Diet food if it has that barcode, else the Open Food Facts product
+ *  (100 g to start, not added to My Diet). null when cancelled. */
+async function scanItem(foods: Food[]): Promise<LogItem | null> {
+  try {
+    const code = await scanBarcode();
+    if (!code) return null;
+    const mine = foods.find((f) => f.barcode === code && !f.disabled);
+    if (mine) return fromFood(mine, mine.defaultGrams ?? mine.pieceGrams ?? 100);
+    const found = await lookupBarcode(code);
+    if (!found) {
+      alert(`Barcode ${code} isn't in Open Food Facts. Add it in My Diet from the label instead.`);
+      return null;
+    }
+    const { name, kcal, protein, carbs, fat } = found;
+    return { foodId: null, name, grams: 100, verified: true, per100: { kcal, protein, carbs, fat } };
+  } catch (e) {
+    alert((e as Error).message);
+    return null;
+  }
+}
 
 /** The user's standing cooking rule (see suggest.ts): chicken and eggs are cooked in their butter. */
 function butterRule(foods: Food[]) {
@@ -116,6 +138,7 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
   const wanted = new Set(hints.flatMap((h) => h.missing.map((f) => f.id)));
   const toggle = (f: Food) => setPicked((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]));
   const next = (items: LogItem[]) => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
+  const pickedItems = () => chosen.map((f) => fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100));
 
   return (
     <Page title="Quick add">
@@ -123,6 +146,16 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
         <EmptyState text="Add foods in My Diet first." />
       ) : (
         <p className="small muted">Tap what you ate. You set the amounts next.</p>
+      )}
+      {canUseCamera && (
+        <Button
+          title="Scan a barcode"
+          variant="secondary"
+          onClick={async () => {
+            const item = await scanItem(foods);
+            if (item) next([...pickedItems(), item]);
+          }}
+        />
       )}
       {hints.map((h) => (
         <div key={h.food.id} className="pair-hint">
@@ -143,7 +176,7 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
         <Button
           title={chosen.length ? `Next · ${chosen.length} food${chosen.length === 1 ? '' : 's'}` : 'Tap foods to add them'}
           disabled={!chosen.length}
-          onClick={() => next(chosen.map((f) => fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100)))}
+          onClick={() => next(pickedItems())}
         />
       </div>
     </Page>
@@ -229,6 +262,16 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
             </span>
           </div>
         ))}
+        {canUseCamera && (
+          <Button
+            title="+ Scan a barcode"
+            variant="secondary"
+            onClick={async () => {
+              const item = await scanItem(foods);
+              if (item) add([item]);
+            }}
+          />
+        )}
         {meals.length > 0 && (
           <Button
             title="+ Add a saved meal"

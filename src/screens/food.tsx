@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { EmptyState, ListRow } from '@/components/ui';
 import type { DayTargets } from '@/db/activity';
-import { listFoods, listMeals } from '@/db/diet';
+import { listFoods, listMeals, type Food } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -12,6 +12,7 @@ import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, photoSrc } from '@/lib/photos';
+import { costOf, money } from '@/lib/price';
 import { useLive } from '@/lib/use-live';
 import { MyDietScreen } from '@/screens/diet';
 import { HistoryScreen } from '@/screens/history';
@@ -80,14 +81,16 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
     const foods = await listFoods();
     return { foods: foods.length, home: foods.filter((f) => f.atHome).length, meals: (await listMeals()).length };
   }, ['foods', 'meals']);
+  const foods = useLive(() => listFoods(true), ['foods']); // for prices; old entries may use foods switched off since
   const swipe = useRef<number | null>(null);
   const shopping = useShopping();
   const targets = useTargets(week);
-  if (!profile || !logs || !days || !weekDays || !targets) return null;
+  if (!profile || !logs || !days || !weekDays || !targets || !foods) return null;
 
   const t = targets.get(date)!;
   const eaten = sumMacros(logs.flatMap((l) => l.items.map((i) => macrosFor(i.per100, i.grams))));
   const left = Math.round(t.kcal - eaten.kcal);
+  const spend = costOf(logs.flatMap((l) => l.items), foods);
   const loggedAt = logTimeFor(date, today);
   const streakDays = streak((d) => (days.get(d)?.kcal ?? 0) > 0, today);
   const go = (d: string) => d <= today && d !== date && animate('fade', () => setDate(d));
@@ -203,8 +206,17 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
       <section className="stack-sm">
         <h2 className="section-title">{date === today ? "Today's food" : 'Food'}</h2>
         {logs.length === 0 && <EmptyState text="Nothing logged yet. Tap + to add a meal." />}
+        {spend.cost > 0 && (
+          <p className="spend-line">
+            <span>
+              <strong>{date === today ? 'Spent today' : 'Spent that day'}</strong>
+              {spend.unpriced > 0 && <span className="small muted block">{spend.unpriced === 1 ? "1 item has no price, so it isn't counted" : `${spend.unpriced} items have no price, so they aren't counted`}</span>}
+            </span>
+            <strong>{money(spend.cost)}</strong>
+          </p>
+        )}
         {[...logs].reverse().map((l) => (
-          <EntryCard key={l.id} log={l} onClick={() => nav.push(<LogFormScreen log={l} />)} />
+          <EntryCard key={l.id} log={l} foods={foods} onClick={() => nav.push(<LogFormScreen log={l} />)} />
         ))}
       </section>
 
@@ -253,8 +265,9 @@ function MacroCard({ label, value, max, icon, kind }: { label: string; value: nu
   );
 }
 
-function EntryCard({ log, onClick }: { log: FoodLog; onClick: () => void }) {
+function EntryCard({ log, foods, onClick }: { log: FoodLog; foods: Food[]; onClick: () => void }) {
   const m = sumMacros(log.items.map((i) => macrosFor(i.per100, i.grams)));
+  const { cost } = costOf(log.items, foods);
   const time = new Date(log.loggedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const r = Math.round;
   return (
@@ -268,6 +281,7 @@ function EntryCard({ log, onClick }: { log: FoodLog; onClick: () => void }) {
         <span className="entry-kcal">
           <Glyph d={ICONS.flame} />
           {r(m.kcal)} calories
+          {cost > 0 && <span className="entry-cost">{money(cost)}</span>}
           {log.items.some((i) => !i.verified) && <span className="tag">UNVERIFIED</span>}
         </span>
         <span className="entry-macros small">

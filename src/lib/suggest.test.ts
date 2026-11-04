@@ -58,6 +58,9 @@ test('caps: twice the usual portion, else 300 g, 50 g for dense foods, never mor
   assert.equal(maxGramsFor(106, undefined, 0), 0);
   assert.equal(maxGramsFor(329, undefined, null, null, 80), 80); // honey with an 80 g smallest portion
   assert.equal(maxGramsFor(329, undefined, 60, null, 80), 60); // …but never more than is at home
+  assert.equal(maxGramsFor(106, 200, null, null, null, 250), 250); // your largest portion beats twice the usual
+  assert.equal(maxGramsFor(329, undefined, null, null, null, 120), 120); // …and the 50 g cap for dense foods
+  assert.equal(maxGramsFor(106, undefined, 180, null, null, 250), 180); // …but never more than is at home
 });
 
 test('options: several different food combinations, closest first, using a variety of foods', () => {
