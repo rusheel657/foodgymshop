@@ -99,12 +99,6 @@ export async function setFoodPhoto(id: string, uri: string | null, ifEmpty = fal
   );
 }
 
-export async function setPrice(id: string, price100: number | null) {
-  await write(['foods'], () =>
-    run('UPDATE foods SET price_100g = ?, updated_at = ?, dirty = 1 WHERE id = ?', [price100, new Date().toISOString(), id]),
-  );
-}
-
 export async function setShopQty(id: string, qty: number) {
   await write(['foods'], () =>
     run('UPDATE foods SET shop_qty = ?, updated_at = ?, dirty = 1 WHERE id = ?', [Math.max(0, qty), new Date().toISOString(), id]),

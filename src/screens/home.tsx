@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Button, EmptyState, NumberInput, num, Page, Segmented } from '@/components/ui';
-import { listFoods, listStockChanges, setAtHome, setHomeGrams, setPrice, type Food, type StockReason } from '@/db/diet';
+import { listFoods, listStockChanges, setAtHome, setHomeGrams, type Food, type StockReason } from '@/db/diet';
 import { listLogs, usualPortions } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { addDays, ymd } from '@/lib/history';
@@ -10,7 +10,6 @@ import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { addPhoto, canUseCamera } from '@/lib/photos';
 import { amountLabel, formatMacros, lastsFor, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
-import { shownPrice, toPrice100 } from '@/lib/price';
 import { maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { GroceryScanScreen } from '@/screens/groceries';
@@ -202,16 +201,13 @@ function HomeRow({ food: f }: { food: Food }) {
   }, [f.homeGrams]);
   const v = toGrams(num(amount), f.pieceGrams);
   const invalid = amount.trim() !== '' && !(v >= 0 && v <= 20000);
-  const [price, setPriceText] = useState(f.price100 === null ? '' : String(shownPrice(f.price100, f.pieceGrams)));
-  const p = num(price);
-  const badPrice = price.trim() !== '' && !(p >= 0 && p <= 1000);
   return (
     <div className="list-row home-row">
       <label className="check-row">
         <input type="checkbox" checked={f.atHome} onChange={(e) => setAtHome(f.id, e.target.checked)} />
         <span>
           <span className="list-title">{f.name}</span>
-          <span className="small muted">{invalid ? 'Enter 0–20000 g' : badPrice ? 'Enter a price up to £1000' : formatMacros(f) + ' per 100 g'}</span>
+          <span className="small muted">{invalid ? 'Enter 0–20000 g' : formatMacros(f) + ' per 100 g'}</span>
         </span>
       </label>
       {f.atHome && (
@@ -228,21 +224,6 @@ function HomeRow({ food: f }: { food: Food }) {
           }}
         />
       )}
-      <span className="home-price small muted">
-        Price
-        <NumberInput
-          label={`Price of ${f.name}`}
-          value={price}
-          placeholder="—"
-          suffix={f.pieceGrams ? '£ each' : '£ per kg'}
-          onChange={(t) => {
-            setPriceText(t);
-            const n = num(t);
-            if (t.trim() === '') void setPrice(f.id, null);
-            else if (n >= 0 && n <= 1000) void setPrice(f.id, toPrice100(n, f.pieceGrams));
-          }}
-        />
-      </span>
     </div>
   );
 }

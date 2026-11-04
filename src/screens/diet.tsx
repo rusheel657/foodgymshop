@@ -10,6 +10,7 @@ import { lookupBarcode, scanBarcode, searchOff } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
+import { shownPrice, toPrice100 } from '@/lib/price';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
 import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
 import { pairLinks } from '@/lib/pairs';
@@ -215,6 +216,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     dailyMax: food.dailyMaxGrams === null ? '' : showAmount(food.dailyMaxGrams, food.pieceGrams),
     min: food.minGrams === null ? '' : showAmount(food.minGrams, food.pieceGrams),
     max: food.maxPortionGrams === null ? '' : showAmount(food.maxPortionGrams, food.pieceGrams),
+    price: food.price100 === null ? '' : String(shownPrice(food.price100, food.pieceGrams)),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
   const [photo, setPhoto] = useState(food.photo);
@@ -227,6 +229,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   const limit = d.dailyMax.trim() === '' ? null : toGrams(num(d.dailyMax), piece);
   const min = d.min.trim() === '' ? null : toGrams(num(d.min), piece);
   const max = d.max.trim() === '' ? null : toGrams(num(d.max), piece);
+  const price = d.price.trim() === '' ? null : num(d.price);
   const error = !d.name.trim()
     ? 'Give it a name.'
     : !(macros.kcal >= 0 && macros.kcal <= 900)
@@ -249,12 +252,15 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
                       ? 'Largest portion must be more than 0 and at most 5000 g.'
                       : max !== null && min !== null && min > max
                         ? 'Smallest portion can’t be more than the largest.'
-                        : null;
+                        : price !== null && !(price >= 0 && price <= 1000)
+                          ? 'Price must be £0–1000.'
+                          : null;
 
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, shopUnit: d.shopUnit.trim() || null,
       pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo,
+      price100: price === null ? null : toPrice100(price, piece),
     });
     // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
     if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
@@ -327,6 +333,9 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           <NumberInput label="Carbs" value={d.carbs} onChange={(carbs) => set({ carbs })} suffix="g C" />
           <NumberInput label="Fat" value={d.fat} onChange={(fat) => set({ fat })} suffix="g F" />
         </div>
+      </Field>
+      <Field label="Price" hint={piece ? 'Optional. What one piece costs. Your meals on the Food screen show what they cost.' : 'Optional. Price per kg, as on the shelf label. Your meals on the Food screen show what they cost.'}>
+        <NumberInput label="Price" value={d.price} onChange={(p) => set({ price: p })} suffix={piece ? '£ each' : '£ per kg'} placeholder="none" />
       </Field>
       <Field label="Usual portion" hint="Optional. Used when you add this food to a meal.">
         <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix="g" />

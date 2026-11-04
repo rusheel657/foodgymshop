@@ -181,10 +181,6 @@ select { flex: 1; min-width: 0; height: 48px; border: 0; background: none; color
 .home-row .check-row > span { display: flex; flex-direction: column; min-width: 0; }
 .home-row > .input { flex-direction: row; width: 104px; flex: none; background: var(--bg); padding: 0 10px; }
 .home-row .input input { width: 100%; text-align: right; }
-.home-row { flex-wrap: wrap; }
-.home-row > .home-price { flex-direction: row; flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding-left: 34px; }
-.home-price .input { flex-direction: row; width: 150px; background: var(--bg); padding: 0 10px; min-height: 36px; }
-.home-price .input input { width: 100%; text-align: right; }
 .spend-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; }
 
 /* History calendar */

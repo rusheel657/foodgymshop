@@ -4,6 +4,7 @@ import { setFoodPhoto, type Food } from '@/db/diet';
 import { findMissingPhotos } from '@/lib/food-photo';
 import { pairLinks } from '@/lib/pairs';
 import { addPhoto, canUseCamera, photoSrc } from '@/lib/photos';
+import { money, shownPrice } from '@/lib/price';
 
 const LINK = 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1';
 const CAMERA = 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7';
@@ -53,6 +54,9 @@ export function FoodGrid({ foods, links = foods, picked, wanted, onPick }: {
               <span className="food-card-body">
                 <span className="food-card-name">{f.name}</span>
                 <span className="small muted">{Math.round(f.kcal)} kcal · {Math.round(f.protein)}P /100 g</span>
+                {f.price100 !== null && (
+                  <span className="small muted">{money(shownPrice(f.price100, f.pieceGrams))} {f.pieceGrams ? 'each' : 'per kg'}</span>
+                )}
                 {needs.length > 0 && (
                   <span className="link-chip needs">
                     <LinkIcon /> With {names(needs)}
