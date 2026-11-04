@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
+
 import { setFoodPhoto, type Food } from '@/db/diet';
+import { findMissingPhotos } from '@/lib/food-photo';
 import { pairLinks } from '@/lib/pairs';
 import { addPhoto, canUseCamera, photoSrc } from '@/lib/photos';
 
@@ -27,6 +30,10 @@ export function FoodGrid({ foods, links = foods, picked, wanted, onPick }: {
   onPick: (food: Food) => void;
 }) {
   const pairs = pairLinks(links);
+  const missing = foods.filter((f) => !f.photo).map((f) => f.id).join();
+  useEffect(() => {
+    if (missing) void findMissingPhotos(foods);
+  }, [missing]);
   return (
     <div className="food-grid">
       {foods.map((f) => {

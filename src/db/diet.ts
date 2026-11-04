@@ -85,9 +85,12 @@ export async function setDisabled(id: string, disabled: boolean) {
   );
 }
 
-export async function setFoodPhoto(id: string, uri: string | null) {
+/** `ifEmpty`: only when it has no photo yet (a found-online photo never replaces yours). */
+export async function setFoodPhoto(id: string, uri: string | null, ifEmpty = false) {
   await write(['foods'], () =>
-    run('UPDATE foods SET photo_path = ?, updated_at = ?, dirty = 1 WHERE id = ?', [uri, new Date().toISOString(), id]),
+    run(`UPDATE foods SET photo_path = ?, updated_at = ?, dirty = 1 WHERE id = ?${ifEmpty ? ' AND photo_path IS NULL' : ''}`, [
+      uri, new Date().toISOString(), id,
+    ]),
   );
 }
 

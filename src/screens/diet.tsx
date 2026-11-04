@@ -11,6 +11,7 @@ import { useNav } from '@/lib/nav';
 import { formatMacros, macrosFor, showAmount, sumMacros, toGrams, unitOf, type FoodDraft } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { searchUsda, type UsdaFood } from '@/lib/supabase';
+import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
 import { pairLinks } from '@/lib/pairs';
 import { useLive } from '@/lib/use-live';
 
@@ -262,6 +263,19 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       if (!/cancel/i.test((e as Error).message)) alert((e as Error).message);
     }
   }
+  const [finding, setFinding] = useState(false);
+  async function findOnline() {
+    setFinding(true);
+    try {
+      const url = await findPhotoUrl({ ...food, name: d.name.trim() || food.name });
+      if (url) setPhoto(await keepPhoto(url));
+      else alert('No photo found online. Take one instead.');
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setFinding(false);
+    }
+  }
   const neededBy = allFoods ? pairLinks(allFoods).neededBy(food.id) : [];
 
   async function toggle() {
@@ -281,7 +295,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       <Field label="Name">
         <TextInput label="Name" value={d.name} onChange={(name) => set({ name })} placeholder="e.g. Lamb mince" />
       </Field>
-      <Field label="Photo" hint="Shown on its card in Quick add and My Diet.">
+      <Field label="Photo" hint="Shown on its card in Quick add and My Diet. Foods without one get a photo from the web automatically.">
         {photo && (
           <div className="thumbs">
             <div className="thumb">
@@ -297,9 +311,8 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
             <Button title={photo ? 'Retake' : 'Take photo'} variant="secondary" onClick={() => pickPhoto('camera')} />
             <Button title="From gallery" variant="secondary" onClick={() => pickPhoto('gallery')} />
           </div>
-        ) : (
-          <span className="small muted">Photos work in the Android app.</span>
-        )}
+        ) : null}
+        <Button title="Find a photo online" variant="secondary" onClick={findOnline} busy={finding} />
       </Field>
       <Field label="Per 100 g">
         <div className="grid-2">
