@@ -1,7 +1,7 @@
 // Supabase Edge Function: searches USDA FoodData Central without shipping the API key in the app.
 // Deploy: npx supabase functions deploy usda-search --project-ref lxxksjhcgzpijptswwqe
 // Secret: npx supabase secrets set USDA_API_KEY=... --project-ref lxxksjhcgzpijptswwqe
-// JWT verification is on (the default), so only signed-in (allowlisted) users can call it.
+// The gateway lets the app's public key through too, so the user's session is checked here (sign-ups are allowlisted).
 import { mapUsdaFoods } from './map.ts';
 
 const cors = {
@@ -13,6 +13,11 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+  const user = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
+    headers: { apikey: req.headers.get('apikey') ?? '', Authorization: req.headers.get('Authorization') ?? '' },
+  });
+  if (!user.ok) return json({ error: 'Sign in to search foods.' }, 401);
 
   const { query } = await req.json().catch(() => ({}));
   if (typeof query !== 'string' || !query.trim() || query.length > 100) return json({ error: 'Bad query' }, 400);

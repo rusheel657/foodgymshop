@@ -1,7 +1,7 @@
 // Supabase Edge Function: photo of a plate → items matched against the user's My Diet (Gemini).
 // Deploy: npx supabase functions deploy analyze-meal --project-ref lxxksjhcgzpijptswwqe
 // Secret: npx supabase secrets set GEMINI_API_KEY=... --project-ref lxxksjhcgzpijptswwqe
-// JWT verification is on (the default), so only signed-in (allowlisted) users can call it.
+// The gateway lets the app's public key through too, so the user's session is checked here (sign-ups are allowlisted).
 // shortcut: no per-user daily cap (plan's ai_calls table); the free Gemini tier rate-limits itself. Add it when friends join.
 import { buildPrompt, parseGemini, parseRequest, RESPONSE_SCHEMA } from './parse.ts';
 
@@ -17,6 +17,11 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+  const user = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
+    headers: { apikey: req.headers.get('apikey') ?? '', Authorization: req.headers.get('Authorization') ?? '' },
+  });
+  if (!user.ok) return json({ error: 'Sign in to analyse meals.' }, 401);
 
   const parsed = parseRequest(await req.json().catch(() => null));
   if (typeof parsed === 'string') return json({ error: parsed }, 400);
