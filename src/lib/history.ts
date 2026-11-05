@@ -65,3 +65,13 @@ export function streak(logged: (date: string) => boolean, today: string) {
   }
   return n;
 }
+
+/** The calendar week (Monday to Sunday) or month containing `date`, as local dates; `to` is exclusive. */
+export function periodRange(period: 'week' | 'month', date: string) {
+  if (period === 'week') {
+    const from = weekOf(date)[0];
+    return { from, to: addDays(from, 7) };
+  }
+  const [y, m] = date.split('-').map(Number);
+  return { from: ymd(new Date(y, m - 1, 1)), to: ymd(new Date(y, m, 1)) };
+}

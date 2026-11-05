@@ -1,49 +1,61 @@
 import { useState } from 'react';
 
-import { EmptyState, Page } from '@/components/ui';
+import { EmptyState, Page, Segmented } from '@/components/ui';
 import { listFoods } from '@/db/diet';
 import { itemsBetween } from '@/db/log';
-import { ymd } from '@/lib/history';
+import { addDays, periodRange, ymd } from '@/lib/history';
 import { animate } from '@/lib/motion';
 import { money, spendSummary } from '@/lib/price';
 import { useLive } from '@/lib/use-live';
 
-/** A month of food spending: the total, a daily average, each food's share and each day's cost.
- *  `date`: a day in the month to open on. Tapping a day shows it on the Food tab (`onPickDay`). */
+/** A calendar week (from Monday) or month of food spending: the total, a daily average, each food's share and each day's cost.
+ *  `date`: a day in the period to open on. Tapping a day shows it on the Food tab (`onPickDay`). */
 export function SpendingScreen({ date, onPickDay }: { date: string; onPickDay: (date: string) => void }) {
-  const now = new Date();
-  const [month, setMonth] = useState({ y: Number(date.slice(0, 4)), m: Number(date.slice(5, 7)) - 1 });
-  const from = ymd(new Date(month.y, month.m, 1));
-  const to = ymd(new Date(month.y, month.m + 1, 1));
+  const today = ymd(new Date());
+  const [period, setPeriod] = useState<'week' | 'month'>('month');
+  const [anchor, setAnchor] = useState(date);
+  const { from, to } = periodRange(period, anchor);
   const items = useLive(() => itemsBetween(from, to), ['food_logs', 'food_log_items'], [from]);
   const foods = useLive(() => listFoods(true), ['foods']);
   if (!items || !foods) return null;
 
   const s = spendSummary(items, foods);
-  const isThisMonth = month.y === now.getFullYear() && month.m === now.getMonth();
-  const daysSoFar = isThisMonth ? now.getDate() : new Date(month.y, month.m + 1, 0).getDate();
+  const isCurrent = from <= today && today < to;
+  const end = isCurrent ? addDays(today, 1) : to;
+  const daysSoFar = Math.round((new Date(`${end}T12:00`).getTime() - new Date(`${from}T12:00`).getTime()) / 86_400_000);
   const top = s.byFood[0]?.cost ?? 0;
   const shift = (by: number) =>
-    animate('fade', () => setMonth(({ y, m }) => ({ y: new Date(y, m + by, 1).getFullYear(), m: new Date(y, m + by, 1).getMonth() })));
+    animate('fade', () => setAnchor(period === 'week' ? addDays(from, 7 * by) : ymd(new Date(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1 + by, 1))));
+  const short = (d: string) => new Date(`${d}T12:00`).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  const title =
+    period === 'week'
+      ? `${short(from)} – ${short(addDays(to, -1))}`
+      : new Date(`${from}T12:00`).toLocaleDateString([], { month: 'long', year: 'numeric' });
+  const name = period === 'week' ? 'week' : 'month';
 
   return (
     <Page title="Spending">
+      <Segmented
+        options={[{ value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }] as const}
+        value={period}
+        onChange={(p) => animate('fade', () => { setPeriod(p); setAnchor(today); })}
+      />
       <div className="date-nav month-nav">
-        <button type="button" className="icon-button" aria-label="Previous month" onClick={() => shift(-1)}>
+        <button type="button" className="icon-button" aria-label={`Previous ${name}`} onClick={() => shift(-1)}>
           ‹
         </button>
-        <h2>{new Date(month.y, month.m, 1).toLocaleDateString([], { month: 'long', year: 'numeric' })}</h2>
-        <button type="button" className="icon-button" aria-label="Next month" disabled={isThisMonth} onClick={() => shift(1)}>
+        <h2>{title}</h2>
+        <button type="button" className="icon-button" aria-label={`Next ${name}`} disabled={isCurrent} onClick={() => shift(1)}>
           ›
         </button>
       </div>
 
       {s.total === 0 ? (
-        <EmptyState text="No priced food logged this month. Add a shopping size and price to your foods in My Diet." />
+        <EmptyState text={`No priced food logged this ${name}. Add a shopping size and price to your foods in My Diet.`} />
       ) : (
         <>
           <div className="card">
-            <span className="label">{isThisMonth ? 'This month so far' : 'This month'}</span>
+            <span className="label">{isCurrent ? `This ${name} so far` : `Spent that ${name}`}</span>
             <strong className="spend-total">{money(s.total)}</strong>
             <span className="muted">{money(s.total / daysSoFar)} a day on average</span>
             {s.unpriced > 0 && (

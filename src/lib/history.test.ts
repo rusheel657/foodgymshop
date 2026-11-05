@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addDays, dayStatus, monthGrid, monthStats, streak, weekOf } from './history.ts';
+import { addDays, dayStatus, monthGrid, monthStats, periodRange, streak, weekOf } from './history.ts';
 
 test('month grid starts on Monday and pads both ends', () => {
   const oct = monthGrid(2026, 9); // October 2026 starts on a Thursday
@@ -48,4 +48,11 @@ test('streak counts back from today, or from yesterday if today is empty', () =>
   assert.equal(streak(has, '2026-10-29'), 3);
   assert.equal(streak(has, '2026-10-30'), 3); // nothing logged yet today
   assert.equal(streak(has, '2026-10-31'), 0); // missed yesterday
+});
+
+test('week runs from the most recent Monday; month from the 1st', () => {
+  assert.deepEqual(periodRange('week', '2026-11-05'), { from: '2026-11-02', to: '2026-11-09' }); // Thursday
+  assert.deepEqual(periodRange('week', '2026-11-02'), { from: '2026-11-02', to: '2026-11-09' }); // Monday itself
+  assert.deepEqual(periodRange('week', '2026-11-01'), { from: '2026-10-26', to: '2026-11-02' }); // Sunday
+  assert.deepEqual(periodRange('month', '2026-12-31'), { from: '2026-12-01', to: '2027-01-01' });
 });
