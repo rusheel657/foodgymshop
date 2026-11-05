@@ -16,3 +16,9 @@ export function costOf(items: { foodId: string | null; grams: number }[], foods:
   }
   return { cost, unpriced };
 }
+
+/** What this much of one food costs, or null if it has no price. */
+export function priceFor(foodId: string | null, grams: number, foods: Priced[]) {
+  const { cost, unpriced } = costOf([{ foodId, grams }], foods);
+  return unpriced ? null : cost;
+}

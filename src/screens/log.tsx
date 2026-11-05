@@ -11,6 +11,7 @@ import {
   correctionNote, diffCorrections, formatMacros, macrosFor, showAmount, sumMacros, toGrams, toLogItems, unitOf, type LogItem,
 } from '@/lib/nutrition';
 import { canUseCamera, deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
+import { money, priceFor } from '@/lib/price';
 import { analyzeMeal } from '@/lib/supabase';
 import { BUTTER_PER_GRAM } from '@/lib/suggest';
 import { pairLinks } from '@/lib/pairs';
@@ -201,7 +202,10 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
   const [items, setItems] = useState(log.items.map((item) => ({ item, amount: showAmount(item.grams, pieceOf(item)) })));
   const [mealId, setMealId] = useState(log.mealId);
 
-  const rows = items.map((r) => ({ ...r, piece: pieceOf(r.item), g: toGrams(num(r.amount), pieceOf(r.item)) }));
+  const rows = items.map((r) => {
+    const g = toGrams(num(r.amount), pieceOf(r.item));
+    return { ...r, piece: pieceOf(r.item), g, price: priceFor(r.item.foodId, g || 0, foods) };
+  });
   const total = sumMacros(rows.map((r) => macrosFor(r.item.per100, r.g || 0)));
   const invalid =
     rows.length === 0 ? 'Add at least one item.' : rows.some((r) => !(r.g > 0 && r.g <= 5000)) ? 'Each amount must be 1–5000 g.' : null;
@@ -259,6 +263,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
             <span className="small muted">
               {!r.item.verified && <span className="tag">UNVERIFIED</span>}
               {formatMacros(macrosFor(r.item.per100, r.g || 0))}
+              {r.price !== null && ` · ${money(r.price)}`}
             </span>
           </div>
         ))}

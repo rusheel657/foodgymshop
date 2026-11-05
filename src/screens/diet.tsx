@@ -13,6 +13,7 @@ import { addPhoto, canUseCamera, deletePhoto, photoSrc } from '@/lib/photos';
 import { estimatePrice, searchUsda, type UsdaFood } from '@/lib/supabase';
 import { findPhotoUrl, keepPhoto } from '@/lib/food-photo';
 import { findPrice } from '@/lib/food-price';
+import { costOf, money, priceFor } from '@/lib/price';
 import { namesMatch } from '@/lib/match';
 import { pairLinks } from '@/lib/pairs';
 import { useLive } from '@/lib/use-live';
@@ -472,6 +473,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
     .map((i, idx) => ({ ...i, idx, g: toGrams(num(i.amount), pieceOf(i.foodId)) }))
     .filter((i) => foods.some((f) => f.id === i.foodId));
   const total = sumMacros(live.map((i) => macrosFor(foods.find((f) => f.id === i.foodId)!, i.g || 0)));
+  const cost = costOf(live.map((i) => ({ foodId: i.foodId, grams: i.g || 0 })), foods);
   const invalid = !name.trim()
     ? 'Give the meal a name.'
     : live.length === 0
@@ -529,22 +531,26 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
         {live.length === 0 && <EmptyState text="No foods yet." />}
         {live.map((item, i) => {
           const food = foods.find((f) => f.id === item.foodId)!;
+          const price = priceFor(food.id, item.g || 0, foods);
           return (
-            <div key={i} className="meal-item">
-              <span className="meal-item-name">{food.name}</span>
-              <NumberInput
-                label={`${food.name} amount`}
-                value={item.amount}
-                onChange={(amount) => setItems((list) => list.map((x, j) => (j === item.idx ? { ...x, amount } : x)))}
-                suffix={unitOf(food.pieceGrams)}
-              />
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Remove ${food.name}`}
-                onClick={() => setItems((list) => list.filter((_, j) => j !== item.idx))}>
-                ×
-              </button>
+            <div key={i} className="log-item">
+              <div className="meal-item">
+                <span className="meal-item-name">{food.name}</span>
+                <NumberInput
+                  label={`${food.name} amount`}
+                  value={item.amount}
+                  onChange={(amount) => setItems((list) => list.map((x, j) => (j === item.idx ? { ...x, amount } : x)))}
+                  suffix={unitOf(food.pieceGrams)}
+                />
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`Remove ${food.name}`}
+                  onClick={() => setItems((list) => list.filter((_, j) => j !== item.idx))}>
+                  ×
+                </button>
+              </div>
+              {price !== null && <span className="small muted">{money(price)}</span>}
             </div>
           );
         })}
@@ -554,6 +560,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
         <h2>{Math.round(total.kcal)} kcal</h2>
         <p className="muted">
           P {Math.round(total.protein)} g · C {Math.round(total.carbs)} g · F {Math.round(total.fat)} g
+          {cost.cost > 0 && ` · ${money(cost.cost)}${cost.unpriced ? ' (some foods have no price)' : ''}`}
         </p>
       </div>
 
