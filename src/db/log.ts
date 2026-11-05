@@ -164,3 +164,13 @@ export async function dailyTotals(from: string, to: string): Promise<Map<string,
   }
   return out;
 }
+
+/** Every logged item between two local dates (to exclusive), with its local day; for spending. */
+export async function itemsBetween(from: string, to: string) {
+  const rows = await all<{ logged_at: string; food_id: string | null; name: string; grams: number }>(
+    `SELECT l.logged_at, i.food_id, i.name, i.grams FROM food_log_items i JOIN food_logs l ON l.id = i.food_log_id
+     WHERE i.deleted_at IS NULL AND l.deleted_at IS NULL AND l.logged_at >= ? AND l.logged_at < ?`,
+    [dayRange(from)[0], dayRange(to)[0]],
+  );
+  return rows.map((r) => ({ day: ymd(new Date(r.logged_at)), foodId: r.food_id, name: r.name, grams: r.grams }));
+}

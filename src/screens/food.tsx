@@ -19,6 +19,7 @@ import { HistoryScreen } from '@/screens/history';
 import { AtHomeScreen, SuggestScreen } from '@/screens/home';
 import { AnalyzeScreen, LogFormScreen, QuickLogScreen } from '@/screens/log';
 import { horizon, ShoppingScreen, useShopping } from '@/screens/shop';
+import { SpendingScreen } from '@/screens/spending';
 import { WeightScreen } from '@/screens/weight';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -207,13 +208,16 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
         <h2 className="section-title">{date === today ? "Today's food" : 'Food'}</h2>
         {logs.length === 0 && <EmptyState text="Nothing logged yet. Tap + to add a meal." />}
         {spend.cost > 0 && (
-          <p className="spend-line">
+          <button
+            type="button"
+            className="spend-line"
+            onClick={() => nav.push(<SpendingScreen date={date} onPickDay={(d) => { setDate(d); nav.pop(); window.scrollTo(0, 0); }} />)}>
             <span>
               <strong>{date === today ? 'Spent today' : 'Spent that day'}</strong>
               {spend.unpriced > 0 && <span className="small muted block">{spend.unpriced === 1 ? "1 item has no price, so it isn't counted" : `${spend.unpriced} items have no price, so they aren't counted`}</span>}
             </span>
-            <strong>{money(spend.cost)}</strong>
-          </p>
+            <strong>{money(spend.cost)} ›</strong>
+          </button>
         )}
         {[...logs].reverse().map((l) => (
           <EntryCard key={l.id} log={l} foods={foods} onClick={() => nav.push(<LogFormScreen log={l} />)} />

@@ -181,7 +181,10 @@ select { flex: 1; min-width: 0; height: 48px; border: 0; background: none; color
 .home-row .check-row > span { display: flex; flex-direction: column; min-width: 0; }
 .home-row > .input { flex-direction: row; width: 104px; flex: none; background: var(--bg); padding: 0 10px; }
 .home-row .input input { width: 100%; text-align: right; }
-.spend-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; }
+.spend-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; padding: 0 4px; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.spend-total { font-size: 34px; line-height: 1.1; }
+.spend-row { align-items: flex-start; }
+.spend-bar { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--accent); }
 
 /* History calendar */
 .month-nav { margin-left: -12px; }
