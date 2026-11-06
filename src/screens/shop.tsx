@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { Page, Segmented } from '@/components/ui';
 import { listFoods, restock, type Food } from '@/db/diet';
-import { listLogs } from '@/db/log';
+import { itemsBetween, listLogs } from '@/db/log';
 import { dayTargets } from '@/db/activity';
 import { localDate, type Profile } from '@/db/profile';
 import { addDays } from '@/lib/history';
@@ -10,16 +10,21 @@ import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
 import { money, packsFor } from '@/lib/price';
+import { cheapestBuy, usualBuy } from '@/lib/shop-plan';
 import { maxGramsFor, planShopping } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 
 const isButter = (f: Food) => /butter/i.test(f.name);
 const pos = (n: number) => Math.max(0, n);
 
-/** Can what's at home cover the rest of today plus the next `days` days? If not, what to buy. */
-async function loadShopping(profile: Profile, days: number) {
-  const [foods, logs] = await Promise.all([listFoods(), listLogs(localDate())]);
+export type ShopMode = 'usual' | 'cheapest';
+
+/** Can what's at home cover the rest of today plus the next `days` days? If not, what to buy:
+ *  "usual" restocks what you normally eat (falls back to filling your macros with under a week of logs),
+ *  "cheapest" is the lowest-cost mix of your priced foods that covers your macros. */
+async function loadShopping(profile: Profile, days: number, mode: ShopMode) {
   const today = localDate();
+  const [foods, logs, history] = await Promise.all([listFoods(), listLogs(today), itemsBetween(addDays(today, -28), today)]);
   const past = [1, 2, 3, 4, 5, 6, 7].map((n) => addDays(today, -n));
   const all = await dayTargets(profile, [today, ...past], today);
   const t = all.get(today)!;
@@ -44,7 +49,7 @@ async function loadShopping(profile: Profile, days: number) {
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
   // At home: up to what you have. "Any" has no amount, so it counts as a normal portion cap for each day
   // (otherwise 500 g of honey would look like a plan).
-  const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, undefined, null, null, f.minGrams, f.maxPortionGrams);
+  const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, f.defaultGrams ?? undefined, null, null, f.minGrams, f.maxPortionGrams);
   const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? capForSpan(f), limitLeft(f)) : 0);
   // Butter counts as a food too (its fat is real food at home), besides being cooking butter for chicken and eggs.
   const stock = foods.filter((f) => f.atHome).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
@@ -55,7 +60,21 @@ async function loadShopping(profile: Profile, days: number) {
     needs: needs(f),
     maxGrams: Math.max(0, Math.min(capForSpan(f), limitLeft(f) - atHome(f))),
   }));
-  return { ...planShopping(required, daily, stock, catalog, butter), foods, required, days };
+  const macro = planShopping(required, daily, stock, catalog, butter);
+  const base = { ...macro, foods, required, days, mode };
+  if (mode === 'usual') {
+    const usual = usualBuy(history, eaten, foods, today, days);
+    if (!usual) return { ...base, note: 'Under a week of logs, so for now this fills your macros. Once you have a week, it restocks what you usually eat.' };
+    return { ...base, buy: usual.buy, needed: usual.buy.length > 0, note: `What you usually eat, from your last ${usual.historyDays} days of logs, minus what's at home.` };
+  }
+  // Cheapest: only foods with a pack size and price; each still capped at normal portions for the days.
+  const priced = catalog.filter((f) => f.packGrams && f.packPrice !== null);
+  const cheap = cheapestBuy(macro.short, priced.map((f) => ({ ...f, pricePer100: (f.packPrice! / f.packGrams!) * 100 })));
+  const notes = [
+    cheap.feasible ? 'The lowest-cost mix of your priced foods that covers your macros.' : "Your priced foods can't cover all your macros in normal portions, so this gets as close as it can.",
+    priced.length < foods.length ? `Only foods with a shopping size and price count (${priced.length} of ${foods.length}).` : '',
+  ];
+  return { ...base, buy: cheap.buy, needed: macro.needed, note: notes.filter(Boolean).join(' ') };
 }
 
 /** How many days ahead to shop for (1–5), remembered and shared by the Shopping page and the Food tab alert. */
@@ -74,6 +93,22 @@ export function useShopDays() {
   return [days, choose] as const;
 }
 
+/** Recommended or cheapest list, remembered like the days. */
+export function useShopMode() {
+  const read = (): ShopMode => (localStorage.getItem('shop-mode') === 'cheapest' ? 'cheapest' : 'usual');
+  const [mode, setMode] = useState(read);
+  useEffect(() => {
+    const update = () => setMode(read());
+    window.addEventListener('shopmode', update);
+    return () => window.removeEventListener('shopmode', update);
+  }, []);
+  const choose = (m: ShopMode) => {
+    localStorage.setItem('shop-mode', m);
+    window.dispatchEvent(new Event('shopmode'));
+  };
+  return [mode, choose] as const;
+}
+
 /** "tomorrow" or "the next 3 days". */
 export const horizon = (days: number) => (days === 1 ? 'tomorrow' : `the next ${days} days`);
 
@@ -81,8 +116,14 @@ export const horizon = (days: number) => (days === 1 ? 'tomorrow' : `the next ${
 export function useShopping() {
   const { profile } = useAccount();
   const [days] = useShopDays();
-  return useLive(async () => (profile ? loadShopping(profile, days) : null), ['foods', 'food_logs', 'food_log_items', 'daily_steps', 'workouts', 'workout_sets'], [profile, days]);
+  const [mode] = useShopMode();
+  return useLive(async () => (profile ? loadShopping(profile, days, mode) : null), ['foods', 'food_logs', 'food_log_items', 'daily_steps', 'workouts', 'workout_sets'], [profile, days, mode]);
 }
+
+const MODE_OPTIONS = [
+  { value: 'usual', label: 'Recommended' },
+  { value: 'cheapest', label: 'Cheapest' },
+] as const;
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5].map((d) => ({ value: d, label: d === 1 ? '1 day' : `${d} days` }));
 
@@ -96,11 +137,13 @@ const MACROS = [
 export function SmartList() {
   const plan = useShopping();
   const [days, setDays] = useShopDays();
+  const [mode, setMode] = useShopMode();
   const [open, setOpen] = useState<(typeof MACROS)[number]['key'] | null>(null);
   const tabs = (
     <div className="shop-days">
       <span className="small muted">Shop for the rest of today plus</span>
       <Segmented options={DAY_OPTIONS} value={days} onChange={(d) => animate('fade', () => setDays(d))} />
+      <Segmented options={MODE_OPTIONS} value={mode} onChange={(m) => animate('fade', () => setMode(m))} />
     </div>
   );
   if (!plan) return tabs;
@@ -163,6 +206,7 @@ export function SmartList() {
       {open && <Sources macro={open} plan={plan} />}
 
       <h2 className="buy-title">What to buy</h2>
+      {plan.note && <p className="small muted">{plan.note}</p>}
       <div className="list buy-list">
         {rows.map(({ b, f, packs, price }) => {
           const m = covered(b.grams, f);
