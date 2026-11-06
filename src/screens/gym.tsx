@@ -53,6 +53,9 @@ const ICON = {
   list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  flame: 'M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5.5.5 2 1.5 3 2.5 3.5 0-3-.5-5.5 0-8z',
 };
 
 type GymSheet = 'start' | 'workouts' | 'history';
@@ -187,9 +190,9 @@ function GymTile({ label, icon, tone, count, onClick }: { label: string; icon: s
   );
 }
 
-function SheetRow({ icon, title, subtitle, onClick }: { icon: string; title: string; subtitle: string; onClick: () => void }) {
+function SheetRow({ icon, title, subtitle, danger, onClick }: { icon: string; title: string; subtitle?: string; danger?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className="list-row" onClick={onClick}>
+    <button type="button" className={danger ? 'list-row danger' : 'list-row'} onClick={onClick}>
       <span className="sheet-row-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24">
           <path d={icon} />
@@ -197,7 +200,7 @@ function SheetRow({ icon, title, subtitle, onClick }: { icon: string; title: str
       </span>
       <span className="grow">
         <span className="list-title">{title}</span>
-        <span className="small muted">{subtitle}</span>
+        {subtitle && <span className="small muted">{subtitle}</span>}
       </span>
     </button>
   );
@@ -443,6 +446,7 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
   const templates = useLive(listTemplates, TEMPLATE_TABLES);
   const ids = [...new Set(w?.sets.map((s) => s.exerciseId) ?? [])];
   const prev = useLive(() => previousSets(ids), ['workouts'], [ids.join()]);
+  const [menu, setMenu] = useState<number | null>(null); // exerciseOrder whose ⋯ sheet is open
   const now = useNow();
   if (!w || !exercises || !templates || !prev) return null;
   if (w.endedAt) return null; // finished from another screen
@@ -479,72 +483,91 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
     nav.pop();
   }
 
+  const working = w.sets.filter((s) => !s.isWarmup);
+  const doneSets = working.filter((s) => s.completedAt).length;
+  const kg = Math.round(volume(w.sets.map((s) => ({ ...s, done: !!s.completedAt }))));
+  const menuGroup = groups.find((g) => g.exerciseOrder === menu);
+  const menuEx = menuGroup && exercises.find((e) => e.id === menuGroup.exerciseId);
+  const menuFirstWork = menuGroup?.sets.find((s) => !s.isWarmup && s.weightKg);
+
   return (
-    <Page title={template?.name ?? 'Workout'}>
-      <p className="muted workout-clock">{formatDuration(now - Date.parse(w.startedAt))}</p>
+    <main className="screen page workout">
+      <header className="workout-head">
+        <button type="button" className="back" aria-label="Back" onClick={() => nav.pop()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <button type="button" className="finish-pill" onClick={finish}>
+          Finish
+        </button>
+      </header>
+      <h1>{template?.name ?? 'Workout'}</h1>
+
+      <div className="card workout-stats">
+        <span>
+          <strong className="workout-clock">{formatDuration(now - Date.parse(w.startedAt))}</strong>
+          <span className="small muted">time</span>
+        </span>
+        <span>
+          <strong>
+            {doneSets}/{working.length}
+          </strong>
+          <span className="small muted">sets</span>
+        </span>
+        <span>
+          <strong>{kg.toLocaleString()}</strong>
+          <span className="small muted">kg lifted</span>
+        </span>
+      </div>
+
       {groups.length === 0 && <EmptyState text="Add your first exercise." />}
 
       {groups.map((g) => {
         const ex = exercises.find((e) => e.id === g.exerciseId);
         const last = prev.get(g.exerciseId)?.filter((s) => !s.isWarmup) ?? [];
-        const firstWork = g.sets.find((s) => !s.isWarmup && s.weightKg);
-        let working = 0;
+        const work = g.sets.filter((s) => !s.isWarmup);
+        let n = 0;
         return (
-          <div key={g.exerciseOrder} className="card">
+          <div key={g.exerciseOrder} className="card ex-card">
             <div className="ex-head">
               <Thumb exercise={ex} />
-              <strong className="grow">{ex?.name ?? 'Unknown exercise'}</strong>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Remove ${ex?.name}`}
-                onClick={() => confirm(`Remove ${ex?.name} from this workout?`) && removeExercise(w.id, g.exerciseOrder)}>
-                ×
+              <span className="grow">
+                <strong className="ex-name">{ex?.name ?? 'Unknown exercise'}</strong>
+                <span className="small muted">
+                  {work.filter((s) => s.completedAt).length}/{work.length} sets done
+                </span>
+              </span>
+              <button type="button" className="icon-button ex-more" aria-label={`More for ${ex?.name}`} onClick={() => setMenu(g.exerciseOrder)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h.01M12 12h.01M19 12h.01" />
+                </svg>
               </button>
             </div>
-            <div className="set-row head small muted">
+            <div className="set-row head">
               <span>Set</span>
               <span>Previous</span>
               <span>kg</span>
               <span>Reps</span>
-              <span>✓</span>
+              <span />
             </div>
             {g.sets.map((s) => {
-              const p = s.isWarmup ? undefined : last[working];
-              const label = s.isWarmup ? 'W' : String(++working);
+              const p = s.isWarmup ? undefined : last[n];
+              const label = s.isWarmup ? 'W' : String(++n);
               return (
-                <SetRow key={s.id} set={s} label={label} previous={p ? kgReps(p) : '–'} onTicked={() => startRest(restFor(g.exerciseId))} />
+                <SetRow key={s.id} set={s} label={label} previous={p ? `${p.weightKg ?? '–'} × ${p.reps ?? '–'}` : '–'} onTicked={() => startRest(restFor(g.exerciseId))} />
               );
             })}
-            <div className="ex-actions">
-              <button type="button" className="link left" onClick={() => addSet(userId, w, g.exerciseId, g.exerciseOrder, g.sets.at(-1))}>
-                + Set
-              </button>
-              {g.sets.length > 1 && (
-                <button type="button" className="link" onClick={() => removeSet(g.sets.at(-1)!.id)}>
-                  − Last set
-                </button>
-              )}
-              {firstWork && !g.sets.some((s) => s.isWarmup) && (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => {
-                    const sets = warmups(firstWork.weightKg!, barFor(ex));
-                    if (sets.length === 0) alert('Too light for warm-ups.');
-                    else void insertWarmups(userId, w, g.exerciseId, g.exerciseOrder, sets);
-                  }}>
-                  Warm-ups
-                </button>
-              )}
-            </div>
+            <button type="button" className="ex-add-set" onClick={() => addSet(userId, w, g.exerciseId, g.exerciseOrder, g.sets.at(-1))}>
+              + Add set
+            </button>
           </div>
         );
       })}
 
-      <Button
-        title="+ Add exercise"
-        variant="secondary"
+      <button
+        type="button"
+        className="add-exercise"
         onClick={() =>
           nav.push(
             <ExercisePickerScreen
@@ -554,12 +577,53 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
               }}
             />,
           )
-        }
-      />
-      <Button title="Finish workout" onClick={finish} />
-      <Button title="Discard workout" variant="secondary" onClick={discard} />
+        }>
+        + Add exercise
+      </button>
+      <button type="button" className="link danger" onClick={discard}>
+        Discard workout
+      </button>
+
+      {menuGroup && (
+        <Sheet title={menuEx?.name ?? 'Exercise'} onClose={() => setMenu(null)}>
+          <div className="list">
+            {menuFirstWork && !menuGroup.sets.some((s) => s.isWarmup) && (
+              <SheetRow
+                icon={ICON.flame}
+                title="Add warm-up sets"
+                subtitle="50%, 70% and 85% of your first set"
+                onClick={() => {
+                  setMenu(null);
+                  const sets = warmups(menuFirstWork.weightKg!, barFor(menuEx));
+                  if (sets.length === 0) alert('Too light for warm-ups.');
+                  else void insertWarmups(userId, w, menuGroup.exerciseId, menuGroup.exerciseOrder, sets);
+                }}
+              />
+            )}
+            {menuGroup.sets.length > 1 && (
+              <SheetRow
+                icon={ICON.minus}
+                title="Remove last set"
+                onClick={() => {
+                  setMenu(null);
+                  void removeSet(menuGroup.sets.at(-1)!.id);
+                }}
+              />
+            )}
+            <SheetRow
+              icon={ICON.trash}
+              title="Remove exercise"
+              danger
+              onClick={() => {
+                setMenu(null);
+                if (confirm(`Remove ${menuEx?.name} from this workout?`)) void removeExercise(w.id, menuGroup.exerciseOrder);
+              }}
+            />
+          </div>
+        </Sheet>
+      )}
       <RestBar />
-    </Page>
+    </main>
   );
 }
 
@@ -612,7 +676,9 @@ function SetRow({ set, label, previous, onTicked }: { set: WorkoutSet; label: st
           await updateSet(set.id, { completedAt: done ? null : new Date().toISOString() });
           if (!done && !set.isWarmup) onTicked();
         }}>
-        ✓
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
       </button>
     </div>
   );
@@ -628,7 +694,10 @@ function RestBar() {
         <button type="button" onClick={() => addRest(-15)}>
           −15
         </button>
-        <strong>{formatDuration(rest.left * 1000)}</strong>
+        <span className="rest-time">
+          <span className="small muted">Rest</span>
+          <strong>{formatDuration(rest.left * 1000)}</strong>
+        </span>
         <button type="button" onClick={() => addRest(15)}>
           +15
         </button>
