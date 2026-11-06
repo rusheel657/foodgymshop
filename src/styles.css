@@ -544,3 +544,17 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .list-row .sheet-row-icon svg { color: var(--text); }
 .sheet .list-row .small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .list-row > .sheet-row-icon { display: grid; flex-direction: initial; place-items: center; }
+
+/* Shopping: stock cards and the list total */
+.stock-card { gap: 12px; animation: rise 340ms var(--ease) both; }
+.stock-head { display: flex; align-items: flex-start; gap: 12px; }
+.stock-head > span:last-child { display: flex; flex-direction: column; }
+.stock-dot { flex: none; width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; }
+.stock-card.out .stock-dot { background: var(--danger); }
+.stock-card.low .stock-dot { background: var(--carbs); }
+.stock-card.ok .stock-dot { background: var(--accent); }
+.stock-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.stock-chip { padding: 6px 12px; border-radius: 999px; background: var(--bg); font-size: 14px; font-weight: 500; }
+.buy-total { flex-direction: row; align-items: center; justify-content: space-between; }
+.buy-total > span { display: flex; flex-direction: column; }
+.buy-total-price { font-size: 26px; font-variant-numeric: tabular-nums; }

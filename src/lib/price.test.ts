@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { costOf, spendSummary } from './price.ts';
+import { costOf, packsFor, spendSummary } from './price.ts';
 
 test('a meal costs its share of each pack', () => {
   const foods = [
@@ -36,4 +36,12 @@ test('spending adds up per day and per food, most expensive food first', () => {
   assert.equal(s.unpriced, 1);
   assert.deepEqual([...s.byDay], [['2026-11-01', 3], ['2026-11-02', 0.5]]);
   assert.deepEqual(s.byFood, [{ name: 'Chicken', cost: 2, grams: 250 }, { name: 'Rice', cost: 1.5, grams: 750 }]);
+});
+
+test('whole packs to buy', () => {
+  assert.equal(packsFor(850, 500), 2);
+  assert.equal(packsFor(500, 500), 1);
+  assert.equal(packsFor(505, 500), 1); // within 2% of a pack
+  assert.equal(packsFor(520, 500), 2);
+  assert.equal(packsFor(40, 500), 1);
 });

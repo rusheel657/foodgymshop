@@ -42,3 +42,6 @@ export function spendSummary(items: { day: string; foodId: string | null; name: 
   }
   return { total, unpriced, byDay, byFood: [...byFood.values()].sort((a, b) => b.cost - a.cost) };
 }
+
+/** Whole packs to buy to get `grams` (a hair over a pack still counts as one, e.g. 502 g of a 500 g pack). */
+export const packsFor = (grams: number, packGrams: number) => Math.max(1, Math.ceil(grams / packGrams - 0.02));

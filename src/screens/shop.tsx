@@ -9,6 +9,7 @@ import { addDays } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
+import { money, packsFor } from '@/lib/price';
 import { maxGramsFor, planShopping } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 
@@ -103,10 +104,12 @@ export function SmartList() {
     </div>
   );
   if (!plan) return tabs;
+  const stock = <StockCards plan={plan} />;
   if (!plan.needed) {
     return (
       <>
         {tabs}
+        {stock}
         <div className="shop-ok">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12.5l4.5 4.5L19 7.5" />
@@ -120,9 +123,19 @@ export function SmartList() {
     );
   }
   const covered = (grams: number, f: Food): Macros => macrosFor(f, grams);
+  // Whole packs of the shopping size you set; foods without one are bought by amount.
+  const rows = plan.buy.map((b) => {
+    const f = plan.foods.find((x) => x.id === b.foodId)!;
+    const packs = f.packGrams ? packsFor(b.grams, f.packGrams) : null;
+    const price = packs !== null && f.packPrice !== null ? packs * f.packPrice : null;
+    return { b, f, packs, price };
+  });
+  const total = rows.reduce((t, r) => t + (r.price ?? 0), 0);
+  const unpriced = rows.filter((r) => r.price === null).length;
   return (
     <section className="smart-list">
       {tabs}
+      {stock}
       <div className="shop-alert">
         <span className="shop-alert-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -151,12 +164,15 @@ export function SmartList() {
 
       <h2 className="buy-title">What to buy</h2>
       <div className="list buy-list">
-        {plan.buy.map((b) => {
-          const f = plan.foods.find((x) => x.id === b.foodId)!;
+        {rows.map(({ b, f, packs, price }) => {
           const m = covered(b.grams, f);
           return (
             <label key={b.foodId} className="buy-row">
-              <input type="checkbox" onChange={(e) => e.target.checked && restock(f.id, b.grams)} aria-label={`Bought ${f.name}`} />
+              <input
+                type="checkbox"
+                onChange={(e) => e.target.checked && restock(f.id, packs !== null ? packs * f.packGrams! : b.grams)}
+                aria-label={`Bought ${f.name}`}
+              />
               <span className="buy-main">
                 <span className="list-title">{f.name}</span>
                 <span className="buy-covers small">
@@ -166,15 +182,72 @@ export function SmartList() {
                 </span>
               </span>
               <span className="buy-amount">
-                <strong>{amountLabel(b.grams, f.pieceGrams)}</strong>
-                {f.packGrams !== null && <span className="small muted">{amountLabel(f.packGrams, f.pieceGrams)} pack</span>}
+                <strong>{packs !== null ? `${packs} × ${amountLabel(f.packGrams!, f.pieceGrams)}` : amountLabel(b.grams, f.pieceGrams)}</strong>
+                <span className="small muted">
+                  {packs !== null && `need ${amountLabel(b.grams, f.pieceGrams)}`}
+                  {packs !== null && price !== null && ' · '}
+                  {price !== null && money(price)}
+                </span>
               </span>
             </label>
           );
         })}
       </div>
+      {total > 0 && (
+        <div className="card buy-total">
+          <span>
+            <strong>Total</strong>
+            {unpriced > 0 && (
+              <span className="small muted">{unpriced === 1 ? '1 item has no price, so it isn\'t counted' : `${unpriced} items have no price, so they aren't counted`}</span>
+            )}
+          </span>
+          <strong className="buy-total-price">{money(total)}</strong>
+        </div>
+      )}
       <p className="small muted">Tick things off as you buy them; they go straight into At home.</p>
     </section>
+  );
+}
+
+/** What's at home against the plan: none of it, low (the list buys more, or less than one usual portion left), or enough. */
+function StockCards({ plan }: { plan: Plan }) {
+  const buying = new Set(plan.buy.map((b) => b.foodId));
+  const out = plan.foods.filter((f) => !f.atHome || f.homeGrams === 0);
+  const have = plan.foods.filter((f) => f.atHome && f.homeGrams !== 0);
+  const isLow = (f: Food) => buying.has(f.id) || (f.homeGrams !== null && f.homeGrams < (f.defaultGrams ?? f.pieceGrams ?? 100));
+  const low = have.filter(isLow);
+  const enough = have.filter((f) => !isLow(f));
+  const when = `the rest of today and ${horizon(plan.days)}`;
+  return (
+    <>
+      {out.length > 0 && <StockCard tone="out" title={`Out of ${plural(out.length)}`} note="In My Diet, but none at home." foods={out} />}
+      {low.length > 0 && <StockCard tone="low" title={`Low on ${plural(low.length)}`} note={`Won't last ${when}.`} foods={low} amounts />}
+      {enough.length > 0 && <StockCard tone="ok" title={`Enough of ${plural(enough.length)}`} note={`Covers ${when}.`} foods={enough} amounts />}
+    </>
+  );
+}
+
+const plural = (n: number) => (n === 1 ? '1 food' : `${n} foods`);
+
+function StockCard({ tone, title, note, foods, amounts }: { tone: 'out' | 'low' | 'ok'; title: string; note: string; foods: Food[]; amounts?: boolean }) {
+  return (
+    <div className={`card stock-card ${tone}`}>
+      <div className="stock-head">
+        <span className="stock-dot" aria-hidden="true" />
+        <span>
+          <strong>{title}</strong>
+          <span className="small muted">{note}</span>
+        </span>
+      </div>
+      <div className="stock-chips">
+        {foods.map((f) => (
+          <span key={f.id} className="stock-chip">
+            {f.name}
+            {amounts && f.homeGrams !== null && <span className="muted"> · {amountLabel(f.homeGrams, f.pieceGrams)}</span>}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
