@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
-import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, SectionHead, Segmented, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, Segmented, Sheet, TextInput } from '@/components/ui';
 import {
   activeWorkout, addExercise, addSet, DEFAULT_REST_S, deleteTemplate, discardWorkout, finishWorkout, getWorkout,
   groupSets, imageUrl, insertWarmups, listExercises, listTemplates, MUSCLES, previousSets, removeExercise, removeSet,
@@ -9,6 +9,7 @@ import {
 } from '@/db/gym';
 import { useAccount } from '@/lib/account';
 import { epley, formatDuration, shape, volume, warmups } from '@/lib/gym';
+import { weekOf, ymd } from '@/lib/history';
 import { useNav } from '@/lib/nav';
 import { addRest, prepareRestNotifications, startRest, stopRest, useRest } from '@/lib/rest-timer';
 import { parseStrong, type StrongWorkout } from '@/lib/strong';
@@ -47,62 +48,158 @@ async function begin(userId: string, nav: ReturnType<typeof useNav>, template: T
   (replace ? nav.replace : nav.push)(<WorkoutScreen workoutId={id} />);
 }
 
+const ICON = {
+  play: 'M8 5.5v13l10.5-6.5z',
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  plus: 'M12 5v14M5 12h14',
+};
+
+type GymSheet = 'start' | 'workouts' | 'history';
+
+const hoursMinutes = (ms: number) => {
+  const m = Math.round(ms / 60_000);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+};
+
 export function GymScreen() {
   const nav = useNav();
   const { userId } = useAccount();
   const active = useLive(activeWorkout, WORKOUT_TABLES);
   const templates = useLive(listTemplates, TEMPLATE_TABLES);
   const exercises = useLive(listExercises, ['exercises']);
-  const history = useLive(() => workoutHistory(30), WORKOUT_TABLES);
+  const history = useLive(() => workoutHistory(200), WORKOUT_TABLES); // shortcut: the History sheet and its count stop at 200; page it if that's ever too few
+  const [sheet, setSheet] = useState<GymSheet | null>(null);
   const now = useNow();
   if (active === undefined || !templates || !exercises || !history) return null;
 
+  const go = (screen: ReactNode) => {
+    setSheet(null);
+    nav.push(screen);
+  };
+  const newTemplate = () => go(<TemplateFormScreen template={{ id: crypto.randomUUID(), name: '', exercises: [] }} isNew />);
+  const titleOf = (w: Workout) => w.name ?? templates.find((t) => t.id === w.templateId)?.name ?? 'Workout';
+  const kgOf = (w: Workout) => Math.round(volume(w.sets.map((s) => ({ ...s, done: !!s.completedAt }))));
+  const monday = new Date(`${weekOf(ymd(new Date(now)))[0]}T00:00`).getTime();
+  const week = history.filter((w) => Date.parse(w.startedAt) >= monday);
+  const weekMs = week.reduce((t, w) => t + Date.parse(w.endedAt!) - Date.parse(w.startedAt), 0);
+
   return (
     <Screen title="Gym">
-      {active ? (
-        <div className="card">
-          <h2>Workout in progress</h2>
-          <p className="muted">{formatDuration(now - Date.parse(active.startedAt))}</p>
-          <Button title="Resume" onClick={() => nav.push(<WorkoutScreen workoutId={active.id} />)} />
-        </div>
-      ) : (
-        <Button title="Start empty workout" variant="secondary" onClick={() => begin(userId, nav, null)} />
+      {active && (
+        <button type="button" className="gym-live" onClick={() => nav.push(<WorkoutScreen workoutId={active.id} />)}>
+          <span>
+            <span className="small">Workout in progress</span>
+            <strong>{formatDuration(now - Date.parse(active.startedAt))}</strong>
+          </span>
+          <span className="gym-live-go">Resume</span>
+        </button>
       )}
 
-      <section className="stack-sm">
-        <SectionHead
-          title="Templates"
-          action="+ New"
-          onAction={() => nav.push(<TemplateFormScreen template={{ id: crypto.randomUUID(), name: '', exercises: [] }} isNew />)}
-        />
-        {templates.length === 0 && <EmptyState text="Make a template for each workout you repeat." />}
-        <div className="list">
-          {templates.map((t) => (
-            <ListRow
-              key={t.id}
-              title={t.name}
-              subtitle={t.exercises.map((e) => nameOf(exercises, e.exerciseId)).join(', ') || 'No exercises'}
-              onClick={() => nav.push(<TemplateFormScreen template={t} />)}
-            />
-          ))}
-        </div>
-      </section>
+      <div className="gym-tiles">
+        <GymTile label="Start workout" icon={ICON.play} tone="green" onClick={() => setSheet('start')} />
+        <GymTile label="My workouts" icon={ICON.list} tone="blue" count={templates.length} onClick={() => setSheet('workouts')} />
+        <GymTile label="History" icon={ICON.clock} tone="orange" count={history.length} onClick={() => setSheet('history')} />
+        <GymTile label="New workout" icon={ICON.plus} tone="red" onClick={newTemplate} />
+      </div>
 
-      <section className="stack-sm">
-        <SectionHead title="History" action="Import from Strong" onAction={() => nav.push(<ImportStrongScreen />)} />
-        {history.length === 0 && <EmptyState text="Finished workouts show up here." />}
-        <div className="list">
-          {history.map((w) => (
-            <ListRow
-              key={w.id}
-              title={w.name ?? templates.find((t) => t.id === w.templateId)?.name ?? 'Workout'}
-              subtitle={`${new Date(w.startedAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${formatDuration(Date.parse(w.endedAt!) - Date.parse(w.startedAt))} · ${Math.round(volume(w.sets.map((s) => ({ ...s, done: !!s.completedAt })))).toLocaleString()} kg`}
-              onClick={() => nav.push(<WorkoutSummaryScreen workout={w} exercises={exercises} title={w.name ?? 'Workout'} />)}
-            />
-          ))}
+      <div className="card gym-week">
+        <span className="label">This week</span>
+        <div className="gym-week-stats">
+          <span><strong>{week.length}</strong><span className="small muted">{week.length === 1 ? 'workout' : 'workouts'}</span></span>
+          <span><strong>{hoursMinutes(weekMs)}</strong><span className="small muted">time</span></span>
+          <span><strong>{week.reduce((t, w) => t + kgOf(w), 0).toLocaleString()}</strong><span className="small muted">kg lifted</span></span>
         </div>
-      </section>
+      </div>
+
+      {sheet === 'start' && (
+        <Sheet title="Start workout" onClose={() => setSheet(null)}>
+          <div className="list">
+            <SheetRow icon={ICON.plus} title="Empty workout" subtitle="Add exercises as you go" onClick={() => { setSheet(null); void begin(userId, nav, null); }} />
+            {templates.map((t) => (
+              <SheetRow
+                key={t.id}
+                icon={ICON.play}
+                title={t.name}
+                subtitle={t.exercises.map((e) => nameOf(exercises, e.exerciseId)).join(', ') || 'No exercises'}
+                onClick={() => { setSheet(null); void begin(userId, nav, t); }}
+              />
+            ))}
+          </div>
+        </Sheet>
+      )}
+
+      {sheet === 'workouts' && (
+        <Sheet title="My workouts" onClose={() => setSheet(null)}>
+          {templates.length === 0 ? (
+            <EmptyState text="Make a workout for each routine you repeat." />
+          ) : (
+            <div className="list">
+              {templates.map((t) => (
+                <ListRow
+                  key={t.id}
+                  title={t.name}
+                  subtitle={t.exercises.map((e) => nameOf(exercises, e.exerciseId)).join(', ') || 'No exercises'}
+                  onClick={() => go(<TemplateFormScreen template={t} />)}
+                />
+              ))}
+            </div>
+          )}
+          <Button title="New workout" onClick={newTemplate} />
+        </Sheet>
+      )}
+
+      {sheet === 'history' && (
+        <Sheet title="History" onClose={() => setSheet(null)}>
+          {history.length === 0 ? (
+            <EmptyState text="Finished workouts show up here." />
+          ) : (
+            <div className="list">
+              {history.map((w) => (
+                <ListRow
+                  key={w.id}
+                  title={titleOf(w)}
+                  subtitle={`${new Date(w.startedAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${formatDuration(Date.parse(w.endedAt!) - Date.parse(w.startedAt))} · ${kgOf(w).toLocaleString()} kg`}
+                  onClick={() => go(<WorkoutSummaryScreen workout={w} exercises={exercises} title={titleOf(w)} />)}
+                />
+              ))}
+            </div>
+          )}
+          <Button title="Import from Strong" variant="secondary" onClick={() => go(<ImportStrongScreen />)} />
+        </Sheet>
+      )}
     </Screen>
+  );
+}
+
+/** Reminders-style tile: coloured icon, a count, and its name. */
+function GymTile({ label, icon, tone, count, onClick }: { label: string; icon: string; tone: string; count?: number; onClick: () => void }) {
+  return (
+    <button type="button" className="gym-tile" onClick={onClick}>
+      <span className={`gym-tile-icon ${tone}`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={icon} />
+        </svg>
+      </span>
+      {count !== undefined && <span className="gym-tile-count">{count}</span>}
+      <span className="gym-tile-label">{label}</span>
+    </button>
+  );
+}
+
+function SheetRow({ icon, title, subtitle, onClick }: { icon: string; title: string; subtitle: string; onClick: () => void }) {
+  return (
+    <button type="button" className="list-row" onClick={onClick}>
+      <span className="sheet-row-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d={icon} />
+        </svg>
+      </span>
+      <span className="grow">
+        <span className="list-title">{title}</span>
+        <span className="small muted">{subtitle}</span>
+      </span>
+    </button>
   );
 }
 

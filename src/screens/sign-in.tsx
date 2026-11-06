@@ -40,7 +40,7 @@ export function SignInScreen() {
   return (
     <main className="screen sign-in">
       <div className="hero">
-        <h1>Food · Gym · Shop</h1>
+        <h1>RSFood</h1>
         <p className="muted">Track meals, lifts and groceries.</p>
       </div>
       {error && <p className="small danger center">{error}</p>}

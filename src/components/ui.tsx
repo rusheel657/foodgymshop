@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useNav } from '@/lib/nav';
 
@@ -165,6 +165,58 @@ export function Meter({ value, max, label, className = 'meter' }: { value: numbe
   return (
     <div className={className} role="progressbar" aria-label={label} aria-valuenow={Math.round(value)} aria-valuemax={Math.round(max)}>
       <div style={{ transform: `scaleX(${f})` }} />
+    </div>
+  );
+}
+
+/** Bottom sheet that slides up; closes on the backdrop, Escape, or dragging the handle down. */
+export function Sheet({ title, label = title, onClose, children }: { title?: string; label?: string; onClose: () => void; children: ReactNode }) {
+  const [dy, setDy] = useState(0);
+  const drag = useRef<{ start: number; dy: number } | null>(null);
+  const close = () => {
+    setDy(window.innerHeight); // slide out, then unmount
+    setTimeout(onClose, 220);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <div className="sheet-backdrop" onClick={close}>
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: drag.current === null ? undefined : 'none' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div
+          className="sheet-grab"
+          onPointerDown={(e) => {
+            drag.current = { start: e.clientY, dy: 0 };
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (!drag.current) return;
+            drag.current.dy = Math.max(0, e.clientY - drag.current.start);
+            setDy(drag.current.dy);
+          }}
+          onPointerUp={() => {
+            const moved = drag.current?.dy ?? 0;
+            drag.current = null;
+            if (moved > 100) close();
+            else setDy(0);
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+            setDy(0);
+          }}>
+          <span className="sheet-handle" />
+          {title && <h2 className="sheet-title">{title}</h2>}
+        </div>
+        <div className="sheet-body">{children}</div>
+      </div>
     </div>
   );
 }

@@ -350,8 +350,11 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 
 
 .sheet-backdrop { position: fixed; z-index: 3; inset: 0; display: flex; align-items: flex-end; background: rgb(0 0 0 / 0.45); animation: fade-in 220ms var(--ease) both; }
-.sheet { width: 100%; padding: 10px 16px calc(env(safe-area-inset-bottom) + 20px); border-radius: 28px 28px 0 0; background: var(--element); animation: slide-up 340ms var(--ease) both; }
-.sheet-handle { display: block; width: 40px; height: 5px; margin: 0 auto 16px; border-radius: 3px; background: var(--border); }
+.sheet { display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: 88dvh; margin: 0 auto; padding: 0 16px calc(env(safe-area-inset-bottom) + 20px); border-radius: 28px 28px 0 0; background: var(--element); transition: transform 220ms var(--ease); animation: slide-up 340ms var(--ease) backwards; }
+.sheet-grab { flex: none; padding: 10px 0 16px; touch-action: none; cursor: grab; }
+.sheet-handle { display: block; width: 40px; height: 5px; margin: 0 auto; border-radius: 3px; background: var(--border); }
+.sheet-title { margin-top: 14px; font-size: 22px; }
+.sheet-body { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sheet-action { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--bg); font-weight: 600; text-align: left; transition: transform 180ms var(--ease); animation: rise 360ms var(--ease) both; }
 .sheet-action:nth-child(2) { animation-delay: 40ms; }
@@ -488,3 +491,32 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .page > .link { align-self: center; padding: 8px; color: var(--muted); }
 .block { display: block; }
 .settings-group .section-title { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); padding-left: 4px; }
+
+/* Gym home: Reminders-style tiles that open sheets */
+.gym-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gym-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-height: 108px; padding: 14px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 360ms var(--ease) both; }
+.gym-tile:nth-child(2) { animation-delay: 40ms; }
+.gym-tile:nth-child(3) { animation-delay: 80ms; }
+.gym-tile:nth-child(4) { animation-delay: 120ms; }
+.gym-tile:active { transform: scale(0.96); }
+.gym-tile-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; }
+.gym-tile-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.gym-tile-icon.green { background: var(--accent); }
+.gym-tile-icon.green svg { fill: currentColor; }
+.gym-tile-icon.blue { background: var(--fat); }
+.gym-tile-icon.orange { background: var(--carbs); }
+.gym-tile-icon.red { background: var(--protein); }
+.gym-tile-count { position: absolute; top: 12px; right: 16px; font-size: 30px; font-weight: 700; line-height: 1; }
+.gym-tile-label { margin-top: auto; font-weight: 600; color: var(--muted); }
+.gym-live { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border: 0; border-radius: 20px; background: var(--brand); color: var(--on-brand); text-align: left; animation: rise 360ms var(--ease) both; }
+.gym-live > span:first-child { display: flex; flex-direction: column; }
+.gym-live strong { font-size: 28px; font-variant-numeric: tabular-nums; }
+.gym-live-go { padding: 10px 18px; border-radius: 999px; background: var(--on-brand); color: var(--brand); font-weight: 700; }
+.gym-week-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gym-week-stats > span { display: flex; flex-direction: column; }
+.gym-week-stats strong { font-size: 22px; }
+.sheet .list { background: var(--bg); box-shadow: none; }
+.sheet-row-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--element); }
+.sheet-row-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.list-row .sheet-row-icon svg { color: var(--text); }
+.sheet .list-row .small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

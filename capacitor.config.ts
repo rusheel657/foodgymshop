@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.rusheelnujetti.foodgymshop',
-  appName: 'Food Gym Shop',
+  appName: 'RSFood',
   webDir: 'dist',
   backgroundColor: '#000000',
   plugins: {

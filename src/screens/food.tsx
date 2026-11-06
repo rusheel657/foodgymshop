@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { EmptyState, ListRow } from '@/components/ui';
+import { EmptyState, ListRow, Sheet } from '@/components/ui';
 import type { DayTargets } from '@/db/activity';
 import { listFoods, listMeals, type Food } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
@@ -236,17 +236,14 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
       </div>
 
       {sheet && (
-        <div className="sheet-backdrop" onClick={() => setSheet(false)}>
-          <div className="sheet" role="dialog" aria-label="Add food" onClick={(e) => e.stopPropagation()}>
-            <span className="sheet-handle" />
-            <div className="sheet-grid">
-              {canUseCamera && <SheetAction label="Scan meal" icon="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0" onClick={() => photo('camera')} />}
-              {canUseCamera && <SheetAction label="From gallery" icon="M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4M15 9h.01" onClick={() => photo('gallery')} />}
-              <SheetAction label="Quick add" icon="M5 6h14M5 12h14M5 18h9" onClick={() => open(<QuickLogScreen loggedAt={loggedAt} />)} />
-              <SheetAction label="What should I eat?" icon="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9V16h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3z" onClick={() => open(<SuggestScreen remaining={remaining} loggedAt={loggedAt} />)} />
-            </div>
+        <Sheet label="Add food" onClose={() => setSheet(false)}>
+          <div className="sheet-grid">
+            {canUseCamera && <SheetAction label="Scan meal" icon="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0" onClick={() => photo('camera')} />}
+            {canUseCamera && <SheetAction label="From gallery" icon="M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4M15 9h.01" onClick={() => photo('gallery')} />}
+            <SheetAction label="Quick add" icon="M5 6h14M5 12h14M5 18h9" onClick={() => open(<QuickLogScreen loggedAt={loggedAt} />)} />
+            <SheetAction label="What should I eat?" icon="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9V16h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3z" onClick={() => open(<SuggestScreen remaining={remaining} loggedAt={loggedAt} />)} />
           </div>
-        </div>
+        </Sheet>
       )}
     </main>
   );
