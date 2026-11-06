@@ -103,9 +103,11 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
     if (butter && cookedInButter(foods[i].name)) butterGrams += grams * BUTTER_PER_GRAM;
   });
   if (butter && butterGrams >= 1) {
+    // Butter eaten plus cooking butter stays within butter's own cap (largest portion, daily limit, what's at home).
+    const cap = foods.find((f) => f.id === butter.id)?.maxGrams ?? Infinity;
     const existing = out.find((s) => s.foodId === butter.id);
-    if (existing) existing.grams += Math.round(butterGrams);
-    else out.push({ foodId: butter.id, name: butter.name, grams: Math.round(butterGrams) });
+    if (existing) existing.grams = Math.min(existing.grams + Math.round(butterGrams), Math.floor(cap));
+    else out.push({ foodId: butter.id, name: butter.name, grams: Math.min(Math.round(butterGrams), Math.floor(cap)) });
   }
   return out;
 }

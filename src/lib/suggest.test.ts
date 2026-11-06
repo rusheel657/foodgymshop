@@ -177,3 +177,11 @@ test('shopping: plenty of protein at home is never "short", even when fatty food
   const low = planShopping(required, daily, [{ ...chicken, maxGrams: 100 }, { ...bread, maxGrams: 800 }], catalog, null);
   assert.equal(Math.round(low.short.protein), Math.round(140 - 24 - 85.6));
 });
+
+test('butter eaten plus cooking butter never passes butter\'s largest portion', () => {
+  const capped = { ...butter, maxGrams: 30 };
+  // Lots of fat wanted and lots of chicken: the solver wants butter to eat and the chicken brings cooking butter too.
+  const s = suggest({ kcal: 1500, protein: 120, carbs: 0, fat: 80 }, [chicken, capped], capped);
+  const b = s.find((x) => x.foodId === 'butter');
+  assert.ok(b && b.grams <= 30, JSON.stringify(s));
+});
