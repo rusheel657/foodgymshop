@@ -14,6 +14,7 @@ export type Template = { id: string; name: string; exercises: TemplateExercise[]
 export type WorkoutSet = {
   id: string; exerciseId: string; exerciseOrder: number; setOrder: number;
   weightKg: number | null; reps: number | null; isWarmup: boolean; completedAt: string | null;
+  rpe: number | null; // 6–10 in half steps
 };
 export type Workout = { id: string; templateId: string | null; name: string | null; startedAt: string; endedAt: string | null; sets: WorkoutSet[] };
 
@@ -119,11 +120,11 @@ export async function deleteTemplate(id: string) {
 
 type SetRow = {
   id: string; workout_id: string; exercise_id: string; exercise_order: number; set_order: number;
-  weight_kg: number | null; reps: number | null; is_warmup: number; completed_at: string | null;
+  weight_kg: number | null; reps: number | null; is_warmup: number; completed_at: string | null; rpe: number | null;
 };
 const toSet = (r: SetRow): WorkoutSet => ({
   id: r.id, exerciseId: r.exercise_id, exerciseOrder: r.exercise_order, setOrder: r.set_order,
-  weightKg: r.weight_kg, reps: r.reps, isWarmup: !!r.is_warmup, completedAt: r.completed_at,
+  weightKg: r.weight_kg, reps: r.reps, isWarmup: !!r.is_warmup, completedAt: r.completed_at, rpe: r.rpe,
 });
 
 async function loadWorkouts(where: string, params: unknown[] = []): Promise<Workout[]> {
@@ -201,8 +202,8 @@ export async function startWorkout(userId: string, template: Template | null) {
   return id;
 }
 
-export async function updateSet(id: string, patch: { weightKg?: number | null; reps?: number | null; isWarmup?: boolean; completedAt?: string | null }) {
-  const cols = { weightKg: 'weight_kg', reps: 'reps', isWarmup: 'is_warmup', completedAt: 'completed_at' } as const;
+export async function updateSet(id: string, patch: { weightKg?: number | null; reps?: number | null; isWarmup?: boolean; completedAt?: string | null; rpe?: number | null }) {
+  const cols = { weightKg: 'weight_kg', reps: 'reps', isWarmup: 'is_warmup', completedAt: 'completed_at', rpe: 'rpe' } as const;
   const keys = Object.keys(patch) as (keyof typeof cols)[];
   await write(['workout_sets'], () =>
     run(

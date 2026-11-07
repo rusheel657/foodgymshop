@@ -447,6 +447,7 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
   const ids = [...new Set(w?.sets.map((s) => s.exerciseId) ?? [])];
   const prev = useLive(() => previousSets(ids), ['workouts'], [ids.join()]);
   const [menu, setMenu] = useState<number | null>(null); // exerciseOrder whose ⋯ sheet is open
+  const [rpeFor, setRpeFor] = useState<string | null>(null); // set id whose RPE sheet is open
   const now = useNow();
   if (!w || !exercises || !templates || !prev) return null;
   if (w.endedAt) return null; // finished from another screen
@@ -489,6 +490,7 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
   const menuGroup = groups.find((g) => g.exerciseOrder === menu);
   const menuEx = menuGroup && exercises.find((e) => e.id === menuGroup.exerciseId);
   const menuFirstWork = menuGroup?.sets.find((s) => !s.isWarmup && s.weightKg);
+  const rpeSet = w.sets.find((s) => s.id === rpeFor);
 
   return (
     <main className="screen page workout">
@@ -549,13 +551,14 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
               <span>Previous</span>
               <span>kg</span>
               <span>Reps</span>
+              <span>RPE</span>
               <span />
             </div>
             {g.sets.map((s) => {
               const p = s.isWarmup ? undefined : last[n];
               const label = s.isWarmup ? 'W' : String(++n);
               return (
-                <SetRow key={s.id} set={s} label={label} previous={p ? `${p.weightKg ?? '–'} × ${p.reps ?? '–'}` : '–'} onTicked={() => startRest(restFor(g.exerciseId))} />
+                <SetRow key={s.id} set={s} label={label} previous={p ? `${p.weightKg ?? '–'} × ${p.reps ?? '–'}` : '–'} onTicked={() => startRest(restFor(g.exerciseId))} onRpe={() => setRpeFor(s.id)} />
               );
             })}
             <button type="button" className="ex-add-set" onClick={() => addSet(userId, w, g.exerciseId, g.exerciseOrder, g.sets.at(-1))}>
@@ -622,13 +625,64 @@ export function WorkoutScreen({ workoutId }: { workoutId: string }) {
           </div>
         </Sheet>
       )}
+      {rpeSet && <RpeSheet set={rpeSet} onClose={() => setRpeFor(null)} />}
       <RestBar />
     </main>
   );
 }
 
+const RPE_MEANS: Record<string, string> = {
+  '6': 'Easy: 4 or more reps left',
+  '6.5': '3 to 4 reps left',
+  '7': '3 reps left',
+  '7.5': '2 to 3 reps left',
+  '8': '2 reps left',
+  '8.5': '1 to 2 reps left',
+  '9': '1 rep left',
+  '9.5': 'No reps left, but a little more weight',
+  '10': 'Max effort: nothing left',
+};
+
+/** Hevy-style RPE picker: a slider from 6 to 10 in half steps, saved as you slide. */
+function RpeSheet({ set, onClose }: { set: WorkoutSet; onClose: () => void }) {
+  const [rpe, setRpe] = useState(set.rpe ?? 8);
+  const save = (v: number | null) => void updateSet(set.id, { rpe: v });
+  return (
+    <Sheet title="How hard was it?" onClose={onClose}>
+      <div className="rpe-value">
+        <strong>{set.rpe === null ? '–' : rpe}</strong>
+        <span className="muted">{set.rpe === null ? 'Slide to rate this set' : RPE_MEANS[String(rpe)]}</span>
+      </div>
+      <input
+        className="rpe-slider"
+        type="range"
+        min={6}
+        max={10}
+        step={0.5}
+        value={rpe}
+        aria-label="RPE"
+        aria-valuetext={`RPE ${rpe}: ${RPE_MEANS[String(rpe)]}`}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setRpe(v);
+          save(v);
+        }}
+      />
+      <div className="rpe-scale small muted" aria-hidden="true">
+        {[6, 7, 8, 9, 10].map((n) => (
+          <span key={n}>{n}</span>
+        ))}
+      </div>
+      <div className="row">
+        <Button title="Clear" variant="secondary" onClick={() => { save(null); onClose(); }} />
+        <Button title="Done" onClick={() => { if (set.rpe === null) save(rpe); onClose(); }} />
+      </div>
+    </Sheet>
+  );
+}
+
 /** One set: Previous | kg | reps | ✓. Tap the set number to toggle warm-up. Inputs save as you type. */
-function SetRow({ set, label, previous, onTicked }: { set: WorkoutSet; label: string; previous: string; onTicked: () => void }) {
+function SetRow({ set, label, previous, onTicked, onRpe }: { set: WorkoutSet; label: string; previous: string; onTicked: () => void; onRpe: () => void }) {
   const [kg, setKg] = useState(set.weightKg === null ? '' : String(set.weightKg));
   const [reps, setReps] = useState(set.reps === null ? '' : String(set.reps));
   const parse = (s: string, max: number) => {
@@ -666,6 +720,9 @@ function SetRow({ set, label, previous, onTicked }: { set: WorkoutSet; label: st
           if (v !== undefined) void updateSet(set.id, { reps: v === null ? null : Math.round(v) });
         }}
       />
+      <button type="button" className={set.rpe === null ? 'rpe-pill' : 'rpe-pill set'} aria-label={`Set ${label} RPE${set.rpe === null ? '' : ` ${set.rpe}`}`} onClick={onRpe}>
+        {set.rpe ?? 'RPE'}
+      </button>
       <button
         type="button"
         className="tick"
@@ -709,6 +766,14 @@ function RestBar() {
   );
 }
 
+/** ' · RPE 8–9' (or ' · RPE 8') over the working sets that have one. */
+function rpeText(sets: WorkoutSet[]) {
+  const r = sets.filter((s) => !s.isWarmup && s.rpe !== null).map((s) => s.rpe!);
+  if (r.length === 0) return '';
+  const [lo, hi] = [Math.min(...r), Math.max(...r)];
+  return ` · RPE ${lo === hi ? lo : `${lo}–${hi}`}`;
+}
+
 function WorkoutSummaryScreen({ workout, exercises, title = 'Workout done' }: { workout: Workout; exercises: Exercise[]; title?: string }) {
   const nav = useNav();
   const sets = workout.sets.map((s) => ({ ...s, done: !!s.completedAt }));
@@ -741,6 +806,7 @@ function WorkoutSummaryScreen({ workout, exercises, title = 'Workout done' }: { 
                 <span className="list-title">{nameOf(exercises, g.exerciseId)}</span>
                 <span className="small muted">
                   {g.sets.filter((s) => !s.isWarmup).length} sets{best ? ` · best ${kgReps(best)}` : ''}
+                  {rpeText(g.sets)}
                 </span>
               </span>
             </div>

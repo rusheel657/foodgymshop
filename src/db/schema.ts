@@ -184,4 +184,6 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE foods ADD COLUMN pack_price REAL;
   UPDATE foods SET pack_grams = 1000, pack_price = price_100g * 10 WHERE price_100g IS NOT NULL;
   `,
+  // 14: how hard a set felt, RPE 6–10 in half steps (10 = nothing left in the tank).
+  `ALTER TABLE workout_sets ADD COLUMN rpe REAL;`,
 ];

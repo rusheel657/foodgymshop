@@ -1,4 +1,4 @@
-This is a Capacitor 8 + Vite + React + TypeScript Android app, RSFood (formerly Food · Gym · Shop). See plan.md for the product plan.
+This is a Capacitor 8 + Vite + React + TypeScript Android app, RSFitness (formerly RSFood and Food · Gym · Shop). See plan.md for the product plan.
 
 ## Layout
 
