@@ -13,6 +13,8 @@
   --brand: var(--text);
   --on-brand: var(--bg);
   --radius: 16px;
+  --seg-track: #26272b;
+  --seg-on: #45474d;
   color-scheme: dark;
   font-family: system-ui, -apple-system, Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -29,6 +31,8 @@
   --carbs: #d6954f;
   --fat: #5a8ae0;
   --shadow: 0 2px 14px rgb(0 0 0 / 0.06);
+  --seg-track: #e5e5ea;
+  --seg-on: #ffffff;
   color-scheme: light;
 }
 
@@ -69,10 +73,10 @@ button, input { font: inherit; color: inherit; }
 .input input { flex: 1; min-width: 0; height: 48px; border: 0; background: none; outline: none; font-size: 16px; }
 input[type='range'] { width: 100%; accent-color: var(--brand); }
 
-.segmented { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.segmented { display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--seg-track); }
 .segmented.vertical { flex-direction: column; }
-.segmented button { flex: 1; min-height: 44px; padding: 0 8px; border: 0; background: none; font-size: 14px; }
-.segmented button[aria-pressed='true'] { background: var(--brand); color: var(--on-brand); }
+.segmented button { flex: 1; min-height: 38px; padding: 0 8px; border: 0; border-radius: 11px; background: none; color: var(--muted); font-size: 14px; font-weight: 600; transition: background-color 200ms var(--ease), color 200ms var(--ease); }
+.segmented button[aria-pressed='true'] { background: var(--seg-on); color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / 0.18); }
 
 .button { height: 52px; border-radius: 24px; border: 1px solid var(--border); background: none; width: 100%; }
 .button.primary { background: var(--brand); color: var(--on-brand); border: 0; }
@@ -401,13 +405,6 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .option-total { padding-top: 8px; border-top: 1px solid var(--border); font-weight: 600; }
 
 /* Smart shopping list */
-.shop-alert { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 0; border-radius: 20px; text-align: left; color: #fff; background: linear-gradient(135deg, #ff8a1f, #ff4d5e); box-shadow: 0 8px 24px rgb(255 100 50 / 0.3); animation: rise 340ms var(--ease) both; }
-.shop-alert.as-button { transition: transform 180ms var(--ease); }
-.shop-alert.as-button:active { transform: scale(0.98); }
-.shop-alert strong { font-size: 17px; }
-.shop-alert .small { opacity: 0.92; }
-.shop-alert-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: rgb(255 255 255 / 0.22); }
-.shop-alert-icon svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .shop-ok { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); }
 .shop-ok svg { flex: none; width: 44px; height: 44px; padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 18%, transparent); fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .smart-list { display: flex; flex-direction: column; gap: 14px; }
@@ -490,7 +487,10 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .food-card.wanted { outline: 2px dashed var(--accent); }
 .food-card-main { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
 .food-card-photo { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 20px 20px 0 0; }
-.food-card-photo.empty { display: grid; place-items: center; font-size: 34px; font-weight: 700; color: var(--muted); background: color-mix(in srgb, var(--text) 6%, var(--element)); }
+.food-card-photo.empty { display: grid; place-items: center; font-size: 34px; font-weight: 800; color: var(--tone, var(--muted)); background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--tone, var(--text)) 26%, var(--element)), color-mix(in srgb, var(--tone, var(--text)) 8%, var(--element))); }
+.food-card-photo.empty.protein { --tone: var(--protein); }
+.food-card-photo.empty.carbs { --tone: var(--carbs); }
+.food-card-photo.empty.fat { --tone: var(--fat); }
 .food-card-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .food-card-name { font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
 .food-card-check { position: absolute; top: 8px; left: 8px; min-width: 28px; height: 28px; padding: 0 6px; display: grid; place-items: center; border-radius: 14px; background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 14px; animation: pop 300ms var(--spring); }
@@ -515,22 +515,22 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .block { display: block; }
 .settings-group .section-title { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); padding-left: 4px; }
 
-/* Gym home: Reminders-style tiles that open sheets */
-.gym-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.gym-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-height: 108px; padding: 14px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 360ms var(--ease) both; }
-.gym-tile:nth-child(2) { animation-delay: 40ms; }
-.gym-tile:nth-child(3) { animation-delay: 80ms; }
-.gym-tile:nth-child(4) { animation-delay: 120ms; }
-.gym-tile:active { transform: scale(0.96); }
-.gym-tile-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; }
-.gym-tile-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.gym-tile-icon.green { background: var(--accent); }
-.gym-tile-icon.green svg { fill: currentColor; }
-.gym-tile-icon.blue { background: var(--fat); }
-.gym-tile-icon.orange { background: var(--carbs); }
-.gym-tile-icon.red { background: var(--protein); }
-.gym-tile-count { position: absolute; top: 12px; right: 16px; font-size: 30px; font-weight: 700; line-height: 1; }
-.gym-tile-label { margin-top: auto; font-weight: 600; color: var(--muted); }
+/* Reminders-style tiles (Gym home, Food tab) */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-height: 108px; padding: 14px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 360ms var(--ease) both; }
+.tile:nth-child(2) { animation-delay: 40ms; }
+.tile:nth-child(3) { animation-delay: 80ms; }
+.tile:nth-child(4) { animation-delay: 120ms; }
+.tile:active { transform: scale(0.96); }
+.tile-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; }
+.tile-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.tile-icon.green { background: var(--accent); }
+.tile-icon.green svg { fill: currentColor; }
+.tile-icon.blue { background: var(--fat); }
+.tile-icon.orange { background: var(--carbs); }
+.tile-icon.red { background: var(--protein); }
+.tile-count { position: absolute; top: 12px; right: 16px; font-size: 30px; font-weight: 700; line-height: 1; }
+.tile-label { margin-top: auto; font-weight: 600; color: var(--muted); }
 .gym-live { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border: 0; border-radius: 20px; background: var(--brand); color: var(--on-brand); text-align: left; animation: rise 360ms var(--ease) both; }
 .gym-live > span:first-child { display: flex; flex-direction: column; }
 .gym-live strong { font-size: 28px; font-variant-numeric: tabular-nums; }
@@ -567,3 +567,15 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .rpe-value strong { font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
 .rpe-slider { width: 100%; height: 32px; accent-color: var(--accent); }
 .rpe-scale { display: flex; justify-content: space-between; margin-top: -10px; padding: 0 4px; }
+
+/* Shopping nudge on the Food tab, and the "time to go shopping" card */
+.shop-nudge { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: 18px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 340ms var(--ease) both; }
+.shop-nudge:active { transform: scale(0.98); }
+.shop-nudge .grow strong { font-size: 15px; }
+.shop-nudge-icon { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--carbs) 20%, transparent); color: var(--carbs); }
+.shop-nudge-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.shop-nudge .chev { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.shop-need { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); }
+.shop-need-head { display: flex; align-items: center; gap: 14px; }
+.shop-need-head svg { flex: none; width: 44px; height: 44px; padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--carbs) 18%, transparent); fill: none; stroke: var(--carbs); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.tile-count small { font-size: 15px; font-weight: 600; color: var(--muted); }

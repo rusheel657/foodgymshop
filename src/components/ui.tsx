@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { tap } from '@/lib/haptics';
 import { useNav } from '@/lib/nav';
 
 export function Screen({ title, children }: { title: ReactNode; children: ReactNode }) {
@@ -43,7 +44,10 @@ export function Segmented<T extends string | number>({
           key={String(o.value)}
           type="button"
           aria-pressed={o.value === value}
-          onClick={() => onChange(o.value)}>
+          onClick={() => {
+            if (o.value !== value) tap();
+            onChange(o.value);
+          }}>
           {o.label}
         </button>
       ))}
@@ -218,5 +222,20 @@ export function Sheet({ title, label = title, onClose, children }: { title?: str
         <div className="sheet-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+/** Reminders-style tile: coloured round icon, an optional count, and its name. */
+export function Tile({ label, icon, tone, count, onClick }: { label: string; icon: string; tone: 'green' | 'blue' | 'orange' | 'red'; count?: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" className="tile" onClick={onClick}>
+      <span className={`tile-icon ${tone}`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={icon} />
+        </svg>
+      </span>
+      {count !== undefined && <span className="tile-count">{count}</span>}
+      <span className="tile-label">{label}</span>
+    </button>
   );
 }

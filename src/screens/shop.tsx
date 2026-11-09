@@ -7,6 +7,7 @@ import { dayTargets } from '@/db/activity';
 import { localDate, type Profile } from '@/db/profile';
 import { addDays } from '@/lib/history';
 import { useAccount } from '@/lib/account';
+import { tap } from '@/lib/haptics';
 import { animate } from '@/lib/motion';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
 import { money, packsFor } from '@/lib/price';
@@ -179,29 +180,28 @@ export function SmartList() {
     <section className="smart-list">
       {tabs}
       {stock}
-      <div className="shop-alert">
-        <span className="shop-alert-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
+      <div className="shop-need">
+        <div className="shop-need-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 4h2l2.5 11h11L21 7H6.2M9 20h.01M18 20h.01" />
           </svg>
-        </span>
-        <div>
-          <strong>Time to go shopping</strong>
-          <p className="small">What's at home won't cover the rest of today and {horizon(plan.days)}.</p>
+          <div>
+            <strong>Time to go shopping</strong>
+            <p className="small muted">What's at home won't cover the rest of today and {horizon(plan.days)}.</p>
+          </div>
         </div>
-      </div>
-
-      <div className="short-chips">
-        {MACROS.filter((m) => plan.short[m.key] >= 1).map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            className={`short-chip ${m.key}`}
-            aria-expanded={open === m.key}
-            onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
-            {m.label} <strong>−{Math.round(plan.short[m.key])} g</strong>
-          </button>
-        ))}
+        <div className="short-chips">
+          {MACROS.filter((m) => plan.short[m.key] >= 1).map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              className={`short-chip ${m.key}`}
+              aria-expanded={open === m.key}
+              onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
+              {m.label} <strong>−{Math.round(plan.short[m.key])} g</strong>
+            </button>
+          ))}
+        </div>
       </div>
       {open && <Sources macro={open} plan={plan} />}
 
@@ -214,7 +214,10 @@ export function SmartList() {
             <label key={b.foodId} className="buy-row">
               <input
                 type="checkbox"
-                onChange={(e) => e.target.checked && restock(f.id, packs !== null ? packs * f.packGrams! : b.grams)}
+                onChange={(e) => {
+                  tap();
+                  if (e.target.checked) void restock(f.id, packs !== null ? packs * f.packGrams! : b.grams);
+                }}
                 aria-label={`Bought ${f.name}`}
               />
               <span className="buy-main">

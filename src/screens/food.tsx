@@ -1,8 +1,8 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { EmptyState, ListRow, Sheet } from '@/components/ui';
+import { EmptyState, Sheet, Tile } from '@/components/ui';
 import type { DayTargets } from '@/db/activity';
-import { listFoods, listMeals, type Food } from '@/db/diet';
+import { listFoods, type Food } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -22,7 +22,6 @@ import { horizon, ShoppingScreen, useShopping } from '@/screens/shop';
 import { SpendingScreen } from '@/screens/spending';
 import { WeightScreen } from '@/screens/weight';
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LOG_TABLES = ['food_logs', 'food_log_items'];
 
 // Small filled glyphs (24×24) for the cards.
@@ -80,8 +79,8 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
   const weekDays = useLive(() => dailyTotals(week[0], addDays(week[6], 1)), LOG_TABLES, [week[0]]);
   const counts = useLive(async () => {
     const foods = await listFoods();
-    return { foods: foods.length, home: foods.filter((f) => f.atHome).length, meals: (await listMeals()).length };
-  }, ['foods', 'meals']);
+    return { foods: foods.length, home: foods.filter((f) => f.atHome).length };
+  }, ['foods']);
   const foods = useLive(() => listFoods(true), ['foods']); // for prices; old entries may use foods switched off since
   const swipe = useRef<number | null>(null);
   const shopping = useShopping();
@@ -189,18 +188,21 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
       </div>
 
       {date === today && shopping?.needed && (
-        <button type="button" className="shop-alert as-button" onClick={() => nav.push(<ShoppingScreen />)}>
-          <span className="shop-alert-icon" aria-hidden="true">
+        <button type="button" className="shop-nudge" onClick={() => nav.push(<ShoppingScreen />)}>
+          <span className="shop-nudge-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M3 4h2l2.5 11h11L21 7H6.2M9 20h.01M18 20h.01" />
             </svg>
           </span>
-          <span>
+          <span className="grow">
             <strong>Time to go shopping</strong>
-            <span className="small block">
-              Short on {new Intl.ListFormat('en-GB').format((['protein', 'carbs', 'fat'] as const).filter((k) => shopping.short[k] >= t[k] * 0.1))} by {shopping.days === 1 ? 'tomorrow' : `the end of ${horizon(shopping.days)}`}. See what to buy
+            <span className="small muted">
+              Short on {new Intl.ListFormat('en-GB').format((['protein', 'carbs', 'fat'] as const).filter((k) => shopping.short[k] >= t[k] * 0.1))} by {shopping.days === 1 ? 'tomorrow' : `the end of ${horizon(shopping.days)}`}
             </span>
           </span>
+          <svg className="chev" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </button>
       )}
 
@@ -224,13 +226,14 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
         ))}
       </section>
 
-      <div className="list">
-        <ListRow title="My Diet" subtitle={counts && `${plural(counts.foods, 'food')} · ${plural(counts.meals, 'meal')}`} onClick={() => nav.push(<MyDietScreen />)} />
-        <ListRow title="At home" subtitle={counts && `${plural(counts.home, 'food')} in the kitchen`} onClick={() => nav.push(<AtHomeScreen />)} />
-        <ListRow title="Weight" subtitle={`${profile.weightKg} kg · log today's weight`} onClick={() => nav.push(<WeightScreen />)} />
-        <ListRow
-          title="History"
-          subtitle="Calendar of past days"
+      <div className="tiles">
+        <Tile label="My Diet" icon={TILE.diet} tone="green" count={counts?.foods} onClick={() => nav.push(<MyDietScreen />)} />
+        <Tile label="At home" icon={TILE.home} tone="orange" count={counts?.home} onClick={() => nav.push(<AtHomeScreen />)} />
+        <Tile label="Weight" icon={TILE.weight} tone="blue" count={<>{profile.weightKg}<small> kg</small></>} onClick={() => nav.push(<WeightScreen />)} />
+        <Tile
+          label="History"
+          icon={TILE.history}
+          tone="red"
           onClick={() => nav.push(<HistoryScreen onPickDay={(d) => { setDate(d); nav.pop(); window.scrollTo(0, 0); }} />)}
         />
       </div>
@@ -248,6 +251,13 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
     </main>
   );
 }
+
+const TILE = {
+  diet: 'M5 19c0-8 6-14 14-14 0 8-6 14-14 14zM5 19l7-7',
+  home: 'M4 11l8-6.5 8 6.5V20h-5v-6H9v6H4z',
+  weight: 'M6 4h12l2 16H4zM9.5 10a2.5 2.5 0 0 1 5 0',
+  history: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+};
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00`) - Date.parse(`${a}T12:00`)) / 86_400_000);
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, Segmented, Sheet, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, Meter, NumberInput, num, Page, Screen, Segmented, Sheet, TextInput, Tile } from '@/components/ui';
 import {
   activeWorkout, addExercise, addSet, DEFAULT_REST_S, deleteTemplate, discardWorkout, finishWorkout, getWorkout,
   groupSets, imageUrl, insertWarmups, listExercises, listTemplates, MUSCLES, previousSets, removeExercise, removeSet,
@@ -9,6 +9,7 @@ import {
 } from '@/db/gym';
 import { useAccount } from '@/lib/account';
 import { epley, formatDuration, shape, volume, warmups } from '@/lib/gym';
+import { tap } from '@/lib/haptics';
 import { weekOf, ymd } from '@/lib/history';
 import { useNav } from '@/lib/nav';
 import { addRest, prepareRestNotifications, startRest, stopRest, useRest } from '@/lib/rest-timer';
@@ -99,11 +100,11 @@ export function GymScreen() {
         </button>
       )}
 
-      <div className="gym-tiles">
-        <GymTile label="Start workout" icon={ICON.play} tone="green" onClick={() => setSheet('start')} />
-        <GymTile label="My workouts" icon={ICON.list} tone="blue" count={templates.length} onClick={() => setSheet('workouts')} />
-        <GymTile label="History" icon={ICON.clock} tone="orange" count={history.length} onClick={() => setSheet('history')} />
-        <GymTile label="New workout" icon={ICON.plus} tone="red" onClick={newTemplate} />
+      <div className="tiles">
+        <Tile label="Start workout" icon={ICON.play} tone="green" onClick={() => setSheet('start')} />
+        <Tile label="My workouts" icon={ICON.list} tone="blue" count={templates.length} onClick={() => setSheet('workouts')} />
+        <Tile label="History" icon={ICON.clock} tone="orange" count={history.length} onClick={() => setSheet('history')} />
+        <Tile label="New workout" icon={ICON.plus} tone="red" onClick={newTemplate} />
       </div>
 
       <div className="card gym-week">
@@ -172,21 +173,6 @@ export function GymScreen() {
         </Sheet>
       )}
     </Screen>
-  );
-}
-
-/** Reminders-style tile: coloured icon, a count, and its name. */
-function GymTile({ label, icon, tone, count, onClick }: { label: string; icon: string; tone: string; count?: number; onClick: () => void }) {
-  return (
-    <button type="button" className="gym-tile" onClick={onClick}>
-      <span className={`gym-tile-icon ${tone}`}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d={icon} />
-        </svg>
-      </span>
-      {count !== undefined && <span className="gym-tile-count">{count}</span>}
-      <span className="gym-tile-label">{label}</span>
-    </button>
   );
 }
 
@@ -664,6 +650,7 @@ function RpeSheet({ set, onClose }: { set: WorkoutSet; onClose: () => void }) {
         aria-valuetext={`RPE ${rpe}: ${RPE_MEANS[String(rpe)]}`}
         onChange={(e) => {
           const v = Number(e.target.value);
+          if (v !== rpe) tap();
           setRpe(v);
           save(v);
         }}
@@ -730,6 +717,7 @@ function SetRow({ set, label, previous, onTicked, onRpe }: { set: WorkoutSet; la
         aria-label={done ? `Untick set ${label}` : `Tick set ${label}`}
         disabled={!done && (kgV === undefined || repsV === undefined || !repsV)}
         onClick={async () => {
+          tap();
           await updateSet(set.id, { completedAt: done ? null : new Date().toISOString() });
           if (!done && !set.isWarmup) onTicked();
         }}>

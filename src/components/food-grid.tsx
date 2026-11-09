@@ -10,6 +10,12 @@ import { money } from '@/lib/price';
 const LINK = 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1';
 const CAMERA = 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7';
 
+/** Where most of a food's calories come from, to colour its card when it has no photo. */
+const mainMacro = (f: Food) => {
+  const kcal = { protein: f.protein * 4, carbs: f.carbs * 4, fat: f.fat * 9 };
+  return (Object.keys(kcal) as (keyof typeof kcal)[]).reduce((a, b) => (kcal[b] > kcal[a] ? b : a));
+};
+
 const names = (foods: Food[]) => foods.map((f) => f.name).join(' + ');
 
 /** Takes a photo for a food's card; cancelling does nothing. */
@@ -48,7 +54,7 @@ export function FoodGrid({ foods, links = foods, picked, wanted, onPick }: {
               {f.photo ? (
                 <img className="food-card-photo" src={photoSrc(f.photo)} alt="" />
               ) : (
-                <span className="food-card-photo empty" aria-hidden="true">
+                <span className={`food-card-photo empty ${mainMacro(f)}`} aria-hidden="true">
                   {f.name.slice(0, 1).toUpperCase()}
                 </span>
               )}
