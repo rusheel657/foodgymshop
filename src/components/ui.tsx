@@ -12,8 +12,23 @@ export function Screen({ title, children }: { title: ReactNode; children: ReactN
   );
 }
 
-export function EmptyState({ text }: { text: string }) {
-  return <p className="empty muted">{text}</p>;
+/** A quiet placeholder for an empty list; `action` adds a button that fills it. */
+export function EmptyState({ text, action, onAction }: { text: string; action?: string; onAction?: () => void }) {
+  return (
+    <div className="empty">
+      <span className="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 13l2.5-7h11L20 13v6H4zM4 13h5l1 2h4l1-2h5" />
+        </svg>
+      </span>
+      <p className="muted">{text}</p>
+      {action && (
+        <button type="button" className="empty-action" onClick={onAction}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {

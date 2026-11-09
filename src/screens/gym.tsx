@@ -768,21 +768,19 @@ function WorkoutSummaryScreen({ workout, exercises, title = 'Workout done' }: { 
   const working = sets.filter((s) => !s.isWarmup);
   return (
     <Page title={title}>
-      <div className="card">
-        <div className="row">
-          <div>
-            <strong>{formatDuration(Date.parse(workout.endedAt!) - Date.parse(workout.startedAt))}</strong>
-            <div className="small muted">Time</div>
-          </div>
-          <div>
-            <strong>{Math.round(volume(sets)).toLocaleString()} kg</strong>
-            <div className="small muted">Volume</div>
-          </div>
-          <div>
-            <strong>{working.length}</strong>
-            <div className="small muted">Sets</div>
-          </div>
-        </div>
+      <div className="card workout-stats">
+        <span>
+          <strong className="workout-clock">{formatDuration(Date.parse(workout.endedAt!) - Date.parse(workout.startedAt))}</strong>
+          <span className="small muted">time</span>
+        </span>
+        <span>
+          <strong>{working.length}</strong>
+          <span className="small muted">sets</span>
+        </span>
+        <span>
+          <strong>{Math.round(volume(sets)).toLocaleString()}</strong>
+          <span className="small muted">kg lifted</span>
+        </span>
       </div>
       <div className="list">
         {groupSets(workout.sets).map((g) => {

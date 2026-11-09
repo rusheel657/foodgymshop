@@ -103,7 +103,11 @@ export function ProfileScreen() {
           </button>
         </div>
       </section>
-      <p className="small muted center">Version {BUNDLE}</p>
+      <footer className="app-footer">
+        <img src="/icon.png" alt="" width={44} height={44} />
+        <strong>RSFitness</strong>
+        <span className="small muted">Version {BUNDLE}</span>
+      </footer>
     </Screen>
   );
 }

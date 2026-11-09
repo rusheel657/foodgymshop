@@ -35,7 +35,7 @@ export function MyDietScreen() {
     <Page title="My Diet">
       <section className="stack-sm">
         <SectionHead title="Foods" action="+ Add" onAction={() => nav.push(<AddFoodScreen />)} />
-        {foods.length === 0 && <EmptyState text="Add the foods you eat regularly." />}
+        {foods.length === 0 && <EmptyState text="Add the foods you eat regularly." action="Add a food" onAction={() => nav.push(<AddFoodScreen />)} />}
         {foods.some((f) => f.pairsWith.length) && (
           <p className="small muted link-legend">
             <LinkIcon /> <b>With</b> = only eaten together with those foods · <b>Goes with</b> = other foods need this one
@@ -68,7 +68,11 @@ export function MyDietScreen() {
           action="+ New"
           onAction={() => nav.push(<MealFormScreen meal={{ id: crypto.randomUUID(), name: '', photos: [], items: [] }} isNew />)}
         />
-        {meals.length === 0 && <EmptyState text='Save fixed meals, e.g. "500 g lamb + 4 eggs".' />}
+        {meals.length === 0 && <EmptyState
+            text='Save fixed meals, e.g. "500 g lamb + 4 eggs".'
+            action="New meal"
+            onAction={() => nav.push(<MealFormScreen meal={{ id: crypto.randomUUID(), name: '', photos: [], items: [] }} isNew />)}
+          />}
         <div className="list">
           {meals.map((m) => (
             <ListRow

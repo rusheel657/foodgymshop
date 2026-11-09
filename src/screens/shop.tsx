@@ -126,7 +126,6 @@ const MODE_OPTIONS = [
   { value: 'cheapest', label: 'Cheapest' },
 ] as const;
 
-const DAY_OPTIONS = [1, 2, 3, 4, 5].map((d) => ({ value: d, label: d === 1 ? '1 day' : `${d} days` }));
 
 const MACROS = [
   { key: 'protein', label: 'Protein' },
@@ -141,9 +140,21 @@ export function SmartList() {
   const [mode, setMode] = useShopMode();
   const [open, setOpen] = useState<(typeof MACROS)[number]['key'] | null>(null);
   const tabs = (
-    <div className="shop-days">
-      <span className="small muted">Shop for the rest of today plus</span>
-      <Segmented options={DAY_OPTIONS} value={days} onChange={(d) => animate('fade', () => setDays(d))} />
+    <div className="card shop-days">
+      <div className="shop-days-row">
+        <span>
+          <strong>Shop for {days === 1 ? '1 day' : `${days} days`}</strong>
+          <span className="small muted">plus the rest of today</span>
+        </span>
+        <div className="stepper">
+          <button type="button" aria-label="One day fewer" disabled={days <= 1} onClick={() => { tap(); animate('fade', () => setDays(days - 1)); }}>
+            −
+          </button>
+          <button type="button" aria-label="One day more" disabled={days >= 5} onClick={() => { tap(); animate('fade', () => setDays(days + 1)); }}>
+            +
+          </button>
+        </div>
+      </div>
       <Segmented options={MODE_OPTIONS} value={mode} onChange={(m) => animate('fade', () => setMode(m))} />
     </div>
   );

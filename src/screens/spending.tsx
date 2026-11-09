@@ -66,8 +66,8 @@ export function SpendingScreen({ date, onPickDay }: { date: string; onPickDay: (
           <section className="stack-sm">
             <h2 className="section-title">By food</h2>
             <div className="list">
-              {s.byFood.map((f) => (
-                <div key={f.name} className="list-row spend-row">
+              {s.byFood.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="list-row spend-row">
                   <span className="grow">
                     <span className="list-title">{f.name}</span>
                     <span className="small muted">

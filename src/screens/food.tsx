@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { EmptyState, Sheet, Tile } from '@/components/ui';
 import type { DayTargets } from '@/db/activity';
-import { listFoods, type Food } from '@/db/diet';
+import { listFoods, listMeals, type Food } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -82,10 +82,11 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
     return { foods: foods.length, home: foods.filter((f) => f.atHome).length };
   }, ['foods']);
   const foods = useLive(() => listFoods(true), ['foods']); // for prices; old entries may use foods switched off since
+  const meals = useLive(listMeals, ['meals', 'meal_items']);
   const swipe = useRef<number | null>(null);
   const shopping = useShopping();
   const targets = useTargets(week);
-  if (!profile || !logs || !days || !weekDays || !targets || !foods) return null;
+  if (!profile || !logs || !days || !weekDays || !targets || !foods || !meals) return null;
 
   const t = targets.get(date)!;
   const eaten = sumMacros(logs.flatMap((l) => l.items.map((i) => macrosFor(i.per100, i.grams))));
@@ -208,7 +209,7 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
 
       <section className="stack-sm">
         <h2 className="section-title">{date === today ? "Today's food" : 'Food'}</h2>
-        {logs.length === 0 && <EmptyState text="Nothing logged yet. Tap + to add a meal." />}
+        {logs.length === 0 && <EmptyState text="Nothing logged yet." action="Add a meal" onAction={() => setSheet(true)} />}
         {spend.cost > 0 && (
           <button
             type="button"
@@ -221,9 +222,26 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
             <strong>{money(spend.cost)} ›</strong>
           </button>
         )}
-        {[...logs].reverse().map((l) => (
-          <EntryCard key={l.id} log={l} foods={foods} onClick={() => nav.push(<LogFormScreen log={l} />)} />
-        ))}
+        {MEAL_TIMES.map(({ label, until }, k) => {
+          const from = MEAL_TIMES[k - 1]?.until ?? 0;
+          const group = logs.filter((l) => {
+            const h = new Date(l.loggedAt).getHours();
+            return h >= from && h < until;
+          });
+          if (group.length === 0) return null;
+          const kcal = sumMacros(group.flatMap((l) => l.items.map((i) => macrosFor(i.per100, i.grams)))).kcal;
+          return (
+            <div key={label} className="meal-group">
+              <p className="meal-group-head">
+                <span>{label}</span>
+                <span className="muted">{Math.round(kcal)} kcal</span>
+              </p>
+              {group.map((l) => (
+                <EntryCard key={l.id} log={l} foods={foods} mealName={meals.find((m) => m.id === l.mealId)?.name} onClick={() => nav.push(<LogFormScreen log={l} />)} />
+              ))}
+            </div>
+          );
+        })}
       </section>
 
       <div className="tiles">
@@ -252,6 +270,14 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
   );
 }
 
+/** Entries grouped by when they were eaten (hour the group ends, 24 h clock). */
+const MEAL_TIMES = [
+  { label: 'Breakfast', until: 11 },
+  { label: 'Lunch', until: 15 },
+  { label: 'Snacks', until: 18 },
+  { label: 'Dinner', until: 24 },
+];
+
 const TILE = {
   diet: 'M5 19c0-8 6-14 14-14 0 8-6 14-14 14zM5 19l7-7',
   home: 'M4 11l8-6.5 8 6.5V20h-5v-6H9v6H4z',
@@ -276,7 +302,7 @@ function MacroCard({ label, value, max, icon, kind }: { label: string; value: nu
   );
 }
 
-function EntryCard({ log, foods, onClick }: { log: FoodLog; foods: Food[]; onClick: () => void }) {
+function EntryCard({ log, foods, mealName, onClick }: { log: FoodLog; foods: Food[]; mealName?: string; onClick: () => void }) {
   const m = sumMacros(log.items.map((i) => macrosFor(i.per100, i.grams)));
   const { cost } = costOf(log.items, foods);
   const time = new Date(log.loggedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -286,7 +312,7 @@ function EntryCard({ log, foods, onClick }: { log: FoodLog; foods: Food[]; onCli
       {log.photoPath && <img className="entry-photo" src={photoSrc(log.photoPath)} alt="" />}
       <span className="entry-body">
         <span className="entry-top">
-          <span className="entry-name">{log.items.map((i) => i.name).join(', ')}</span>
+          <span className="entry-name">{mealName ?? log.items.map((i) => i.name).join(', ')}</span>
           <span className="small muted">{time}</span>
         </span>
         <span className="entry-kcal">
