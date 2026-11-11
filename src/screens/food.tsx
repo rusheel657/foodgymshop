@@ -305,7 +305,7 @@ function EntryCard({ log, foods, mealName, onClick }: { log: FoodLog; foods: Foo
       {log.photoPath && <img className="entry-photo" src={photoSrc(log.photoPath)} alt="" />}
       <span className="entry-body">
         <span className="entry-top">
-          <span className="entry-name">{mealName ?? log.items.map((i) => i.name).join(', ')}</span>
+          <span className="entry-name">{log.name || mealName || log.items.map((i) => i.name).join(', ')}</span>
           <span className="small muted">{time}</span>
         </span>
         <span className="entry-kcal">

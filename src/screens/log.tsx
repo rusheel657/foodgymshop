@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { LinkIcon, FoodGrid } from '@/components/food-grid';
-import { Button, EmptyState, ListRow, NumberInput, num, Page, SectionHead } from '@/components/ui';
-import { listFoods, listMeals, mealMacros, type Food, type Meal } from '@/db/diet';
-import { deleteLog, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
+import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, TextInput } from '@/components/ui';
+import { listFoods, listMeals, mealMacros, saveMeal, type Food, type Meal } from '@/db/diet';
+import { deleteLog, logTimeFor, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
+import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { lookupBarcode, scanBarcode } from '@/lib/barcode';
 import { useNav } from '@/lib/nav';
@@ -201,6 +202,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
   const pieceOf = (item: LogItem) => foods.find((f) => f.id === item.foodId)?.pieceGrams;
   const [items, setItems] = useState(log.items.map((item) => ({ item, amount: showAmount(item.grams, pieceOf(item)) })));
   const [mealId, setMealId] = useState(log.mealId);
+  const [name, setName] = useState(log.name ?? '');
 
   const rows = items.map((r) => {
     const g = toGrams(num(r.amount), pieceOf(r.item));
@@ -212,9 +214,27 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
   const add = (more: LogItem[]) => setItems((list) => [...list, ...more.map((item) => ({ item, amount: showAmount(item.grams, pieceOf(item)) }))]);
 
   async function save() {
-    await saveLog(userId, { ...log, mealId, items: rows.map((r) => ({ ...r.item, grams: r.g })) });
+    await saveLog(userId, { ...log, mealId, name, items: rows.map((r) => ({ ...r.item, grams: r.g })) });
     if (aiItems) await saveCorrections(userId, log.id, diffCorrections(aiItems, rows.map((r) => ({ item: r.item, grams: r.g }))));
     nav.pop();
+  }
+
+  // A past entry eaten again: the same items as a new entry for now, opened so amounts can still be changed.
+  function copyToToday() {
+    const today = localDate();
+    nav.replace(<LogFormScreen log={newLog(logTimeFor(today, today), { mealId, name, items: rows.map((r) => ({ ...r.item, grams: r.g })) })} isNew />);
+  }
+
+  // One-off items (scanned, AI estimates) aren't in My Diet, so a saved meal can't hold them.
+  async function saveAsMeal() {
+    const own = rows.filter((r) => r.item.foodId);
+    if (own.length === 0) return alert("None of these items are in My Diet, so they can't make a saved meal.");
+    const title = prompt('Name this meal', name.trim() || own.map((r) => r.item.name).join(' + '))?.trim();
+    if (!title) return;
+    const id = crypto.randomUUID();
+    await saveMeal(userId, { id, name: title, photos: [], items: own.map((r) => ({ foodId: r.item.foodId!, grams: r.g })) });
+    setMealId(id);
+    alert(own.length < rows.length ? `Saved "${title}" to My Diet (one-off items left out).` : `Saved "${title}" to My Diet.`);
   }
 
   async function remove() {
@@ -232,6 +252,15 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
         </div>
       )}
       {notice && <p className="muted">{notice}</p>}
+
+      <Field label="Name" hint="Optional. Shown on the Food tab instead of the list of foods.">
+        <TextInput
+          label="Name"
+          value={name}
+          onChange={setName}
+          placeholder={meals.find((m) => m.id === mealId)?.name ?? (rows.map((r) => r.item.name).join(', ') || 'e.g. Post-gym bowl')}
+        />
+      </Field>
 
       <section className="stack-sm">
         <SectionHead
@@ -313,6 +342,12 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
 
       {invalid && <p className="small muted">{invalid}</p>}
       <Button title={isNew ? 'Log' : 'Save'} onClick={save} disabled={!!invalid} />
+      {!isNew && (
+        <div className="row">
+          <Button title="Copy to today" variant="secondary" onClick={copyToToday} disabled={!!invalid} />
+          <Button title="Save as a meal" variant="secondary" onClick={saveAsMeal} disabled={!!invalid} />
+        </div>
+      )}
       {!isNew && <Button title="Delete entry" variant="secondary" onClick={remove} />}
     </Page>
   );

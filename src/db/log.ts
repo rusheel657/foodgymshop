@@ -11,6 +11,7 @@ export type FoodLog = {
   mealId: string | null;
   photoPath: string | null;
   source: 'photo' | 'quick';
+  name?: string | null; // your own title for it
   items: LogItem[];
 };
 
@@ -29,8 +30,8 @@ export function logTimeFor(date: string, today: string) {
 
 export async function listLogs(date: string): Promise<FoodLog[]> {
   const [from, to] = dayRange(date);
-  const logs = await all<{ id: string; logged_at: string; meal_id: string | null; photo_path: string | null; source: FoodLog['source'] }>(
-    'SELECT id, logged_at, meal_id, photo_path, source FROM food_logs WHERE deleted_at IS NULL AND logged_at >= ? AND logged_at < ? ORDER BY logged_at',
+  const logs = await all<{ id: string; logged_at: string; meal_id: string | null; photo_path: string | null; source: FoodLog['source']; name: string | null }>(
+    'SELECT id, logged_at, meal_id, photo_path, source, name FROM food_logs WHERE deleted_at IS NULL AND logged_at >= ? AND logged_at < ? ORDER BY logged_at',
     [from, to],
   );
   if (logs.length === 0) return [];
@@ -39,7 +40,7 @@ export async function listLogs(date: string): Promise<FoodLog[]> {
     logs.map((l) => l.id),
   );
   return logs.map((l) => ({
-    id: l.id, loggedAt: l.logged_at, mealId: l.meal_id, photoPath: l.photo_path, source: l.source,
+    id: l.id, loggedAt: l.logged_at, mealId: l.meal_id, photoPath: l.photo_path, source: l.source, name: l.name,
     items: items
       .filter((i) => i.food_log_id === l.id)
       .map((i) => {
@@ -86,9 +87,10 @@ export async function saveLog(userId: string, log: FoodLog) {
     for (const i of log.items) if (i.foodId) used.set(i.foodId, (used.get(i.foodId) ?? 0) + i.grams);
     await useStock(used, before.size ? 'edited' : 'eaten', now);
     await run(
-      `INSERT INTO food_logs (id, user_id, updated_at, dirty, logged_at, meal_id, photo_path, source) VALUES (?, ?, ?, 1, ?, ?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET updated_at = excluded.updated_at, dirty = 1, logged_at = excluded.logged_at`,
-      [log.id, userId, now, log.loggedAt, log.mealId, log.photoPath, log.source],
+      `INSERT INTO food_logs (id, user_id, updated_at, dirty, logged_at, meal_id, photo_path, source, name) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET updated_at = excluded.updated_at, dirty = 1, logged_at = excluded.logged_at,
+         meal_id = excluded.meal_id, name = excluded.name`,
+      [log.id, userId, now, log.loggedAt, log.mealId, log.photoPath, log.source, log.name?.trim() || null],
     );
     await run(
       'UPDATE food_log_items SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE food_log_id = ? AND deleted_at IS NULL',

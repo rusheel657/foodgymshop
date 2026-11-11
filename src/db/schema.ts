@@ -190,4 +190,6 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE meals ADD COLUMN method TEXT;`,
   // 16: a food only used for cooking (chicken/eggs) and in saved meals, never suggested on its own (butter).
   `ALTER TABLE foods ADD COLUMN recipe_only INTEGER NOT NULL DEFAULT 0;`,
+  // 17: your own title for a logged meal (otherwise its saved meal's name or its foods).
+  `ALTER TABLE food_logs ADD COLUMN name TEXT;`,
 ];
