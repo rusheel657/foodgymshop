@@ -2,6 +2,7 @@ import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 
+import { noteAi } from '@/lib/ai-usage';
 import type { AiItem } from '@/lib/nutrition';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -52,6 +53,13 @@ export async function searchUsda(query: string): Promise<UsdaFood[]> {
   return data ?? [];
 }
 
+/** Calls a Gemini-backed Edge Function and counts it towards today's AI usage. */
+async function aiInvoke<T>(name: string, body: Record<string, unknown>) {
+  const r = await supabase.functions.invoke<T>(name, { body });
+  noteAi(r.error ? (r.error.context as Response | undefined)?.status : 200);
+  return r;
+}
+
 /** Photo (base64 JPEG) + My Diet names → matched items, via the analyze-meal Edge Function (Gemini).
  *  `kind: 'groceries'` reads a shopping haul instead of a plate: whole amounts bought, no meals. */
 export async function analyzeMeal(body: {
@@ -62,7 +70,7 @@ export async function analyzeMeal(body: {
   notes: string[];
   rules: string[];
 }): Promise<AiItem[]> {
-  const { data, error } = await supabase.functions.invoke<{ items: AiItem[] }>('analyze-meal', { body });
+  const { data, error } = await aiInvoke<{ items: AiItem[] }>('analyze-meal', body);
   if (error) {
     // Non-2xx: the function's { error } is in the body; gateway failures (timeout, worker limit) say { code, message } or plain text.
     const res = error.context as Response | undefined;
@@ -84,7 +92,7 @@ export type PriceEstimate = { price: number; packGrams: number | null; store: st
 
 /** Gemini's estimate of a food's UK supermarket price, via the estimate-price Edge Function. Null if it has none. */
 export async function estimatePrice(name: string, packGrams: number | null): Promise<PriceEstimate | null> {
-  const { data, error } = await supabase.functions.invoke<{ estimate: PriceEstimate | null }>('estimate-price', { body: { name, packGrams } });
+  const { data, error } = await aiInvoke<{ estimate: PriceEstimate | null }>('estimate-price', { name, packGrams });
   if (error) {
     const text = await (error.context as Response | undefined)?.text?.().catch(() => '');
     let detail = error.message;
@@ -102,7 +110,7 @@ export type Recipe = { name: string; steps: string[] };
 
 /** A short recipe (name + steps) for exactly these foods and grams, via the make-recipe Edge Function (Gemini). */
 export async function makeRecipe(items: { name: string; grams: number }[]): Promise<Recipe> {
-  const { data, error } = await supabase.functions.invoke<{ recipe: Recipe }>('make-recipe', { body: { items } });
+  const { data, error } = await aiInvoke<{ recipe: Recipe }>('make-recipe', { items });
   if (error || !data?.recipe) {
     const text = await (error?.context as Response | undefined)?.text?.().catch(() => '');
     let detail = error?.message ?? 'no recipe';
@@ -114,4 +122,27 @@ export async function makeRecipe(items: { name: string; grams: number }[]): Prom
     throw new Error(`Recipe failed: ${detail}`);
   }
   return data.recipe;
+}
+
+export type MealIdea = { name: string; foodIds: string[] };
+
+/** Gemini's ideas for which of your at-home foods go together, per meal label (the app sets the grams). */
+export async function mealIdeas(body: {
+  meals: { label: string; kcal: number; protein: number; carbs: number; fat: number }[];
+  foods: { id: string; name: string }[];
+  recent: string[];
+  perMeal: number;
+}): Promise<Record<string, MealIdea[]>> {
+  const { data, error } = await aiInvoke<{ ideas: Record<string, MealIdea[]> }>('meal-ideas', body);
+  if (error || !data?.ideas) {
+    const text = await (error?.context as Response | undefined)?.text?.().catch(() => '');
+    let detail = error?.message ?? 'no ideas';
+    try {
+      detail = JSON.parse(text ?? '').error ?? detail;
+    } catch {
+      // not JSON: keep the client's message
+    }
+    throw new Error(detail);
+  }
+  return data.ideas;
 }
