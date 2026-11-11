@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { maxGramsFor, mealTarget, planError, planMacros, planShopping, suggest, suggestOptions, type Suggestion } from './suggest.ts';
+import { dayPlan, mealFits, maxGramsFor, mealTarget, planError, planMacros, planShopping, suggest, suggestOptions, type Suggestion } from './suggest.ts';
 
 const f = (id: string, name: string, kcal: number, protein: number, carbs: number, fat: number, maxGrams = 300) =>
   ({ id, name, kcal, protein, carbs, fat, maxGrams });
@@ -184,4 +184,31 @@ test('butter eaten plus cooking butter never passes butter\'s largest portion', 
   const s = suggest({ kcal: 1500, protein: 120, carbs: 0, fat: 80 }, [chicken, capped], capped);
   const b = s.find((x) => x.foodId === 'butter');
   assert.ok(b && b.grams <= 30, JSON.stringify(s));
+});
+
+test('full day: a meal per meal time left, adding up to the day, never using more than is at home', () => {
+  const foods = [chicken, bread, lamb, honey].map((x) => ({ ...x, dayGrams: x.id === 'chicken' ? 400 : 1000 }));
+  const remaining = { kcal: 2000, protein: 150, carbs: 200, fat: 60 };
+  const day = dayPlan(remaining, foods, null, 12); // after breakfast time
+  assert.deepEqual(day.map((m) => m.label), ['Lunch', 'Snacks', 'Dinner']);
+  const items = day.flatMap((m) => m.plan);
+  const chickenUsed = items.filter((i) => i.foodId === 'chicken').reduce((g, i) => g + i.grams, 0);
+  assert.ok(chickenUsed <= 400, `chicken ${chickenUsed}`);
+  const t = total(items, foods);
+  assert.ok(Math.abs(t.p - 150) < 30 && Math.abs(t.c - 200) < 40, JSON.stringify(t));
+  assert.equal(dayPlan(remaining, foods, null, 23).length, 1); // late evening: just dinner
+});
+
+test('meals use foods you actually eat at that time of day', () => {
+  // Bread only ever at breakfast, chicken and lamb only at dinner.
+  const history = [8, 8, 9, 9, 8].flatMap((h) => [{ hour: h, foodId: 'bread' }, { hour: h, foodId: 'honey' }])
+    .concat([19, 19, 20, 20, 19].flatMap((h) => [{ hour: h, foodId: 'chicken' }, { hour: h, foodId: 'lamb' }]));
+  const fits = mealFits(history);
+  assert.ok(fits('bread', 'Breakfast') && !fits('chicken', 'Breakfast'));
+  assert.ok(fits('chicken', 'Lunch')); // no lunch history: anything goes
+  const foods = [chicken, bread, lamb, honey].map((x) => ({ ...x, dayGrams: 2000 }));
+  const day = dayPlan({ kcal: 2000, protein: 150, carbs: 200, fat: 60 }, foods, null, 7, fits);
+  const ids = (label: string) => day.find((m) => m.label === label)!.plan.map((p) => p.foodId);
+  assert.ok(ids('Breakfast').every((id) => id === 'bread' || id === 'honey'), JSON.stringify(ids('Breakfast')));
+  assert.ok(ids('Dinner').every((id) => id === 'chicken' || id === 'lamb'), JSON.stringify(ids('Dinner')));
 });

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { Button, EmptyState, NumberInput, num, Page, Segmented } from '@/components/ui';
 import { listFoods, listStockChanges, setAtHome, setHomeGrams, type Food, type StockReason } from '@/db/diet';
-import { listLogs, usualPortions } from '@/db/log';
+import { itemsBetween, listLogs, usualPortions } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { addDays, ymd } from '@/lib/history';
 import { useTargets } from '@/lib/health';
@@ -10,7 +10,7 @@ import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { addPhoto, canUseCamera } from '@/lib/photos';
 import { amountLabel, formatMacros, lastsFor, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
-import { maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
+import { dayPlan, mealFits, MEALS, maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { GroceryScanScreen } from '@/screens/groceries';
 import { LogFormScreen, newLog } from '@/screens/log';
@@ -233,33 +233,37 @@ const SIZE_OPTIONS = [
   { value: 'small', label: 'Small' },
   { value: 'medium', label: 'Medium' },
   { value: 'large', label: 'Large' },
+  { value: 'day', label: 'Full day' },
 ] as const;
 
 export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; loggedAt: string }) {
   const nav = useNav();
-  const [size, setSize] = useState<MealSize>(() => {
+  const [size, setSize] = useState<MealSize | 'day'>(() => {
     const saved = localStorage.getItem('meal-size');
-    return saved && saved in MEAL_SIZES ? (saved as MealSize) : 'medium';
+    return saved === 'day' || (saved && saved in MEAL_SIZES) ? (saved as MealSize | 'day') : 'medium';
   });
   const day = ymd(new Date(loggedAt));
   const data = useLive(
-    async () => ({ foods: await listFoods(), usual: await usualPortions(), logs: await listLogs(day) }),
+    async () => ({ foods: await listFoods(), usual: await usualPortions(), logs: await listLogs(day), history: await itemsBetween(addDays(day, -28), day) }),
     ['foods', 'food_logs', 'food_log_items'],
     [day],
   );
   const targets = useTargets([day]);
   if (!data || !targets) return null;
-  const { foods, usual, logs } = data;
-  const meal = mealTarget(remaining, targets.get(day)!.kcal, size);
+  const { foods, usual, logs, history } = data;
+  const fits = mealFits(history);
+  const mealNow = MEALS.find((m) => new Date(loggedAt).getHours() < m.until)!.label;
+  const meal = mealTarget(remaining, targets.get(day)!.kcal, size === 'day' ? 'medium' : size);
   // Grams of each food already eaten that day, so daily limits count it.
   const eaten = new Map<string, number>();
   for (const i of logs.flatMap((l) => l.items)) if (i.foodId) eaten.set(i.foodId, (eaten.get(i.foodId) ?? 0) + i.grams);
   const home = foods.filter((f) => f.atHome); // butter included: it's a fat source too (capped like other dense foods)
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
+  const usualNow = home.filter((f) => fits(f.id, mealNow));
   const options = suggestOptions(
     meal,
-    home.map((f) => ({
+    (usualNow.length >= 2 ? usualNow : home).map((f) => ({
       ...f,
       maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0), f.minGrams, f.maxPortionGrams),
       // A pairing with a deleted food is ignored; one with a food that's not at home rules this food out.
@@ -272,6 +276,30 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
       return { foodId: f.id, name: f.name, grams: p.grams, verified: true, per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } };
     }),
   );
+  const toItems = (plan: { foodId: string; grams: number }[]) =>
+    plan.map((p): LogItem => {
+      const f = foods.find((x) => x.id === p.foodId)!;
+      return { foodId: f.id, name: f.name, grams: p.grams, verified: true, per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } };
+    });
+  // Full day: a portion cap per meal, and what's at home / the daily limit shared across the day's meals.
+  const now = new Date(loggedAt);
+  const days =
+    size === 'day'
+      ? dayPlan(
+          remaining,
+          home.map((f) => ({
+            ...f,
+            maxGrams: maxGramsFor(f.kcal, usual.get(f.id), null, null, f.minGrams, f.maxPortionGrams),
+            dayGrams: Math.min(f.homeGrams ?? Infinity, f.dailyMaxGrams === null ? Infinity : Math.max(0, f.dailyMaxGrams - (eaten.get(f.id) ?? 0))),
+            needs: f.pairsWith.filter((id) => foods.some((x) => x.id === id)),
+          })),
+          butter,
+          now.getHours(),
+          fits,
+        ).map((m) => ({ ...m, items: toItems(m.plan) }))
+      : [];
+  // Log a planned meal now if we're in its time, else at its usual time that day.
+  const timeFor = (m: { at: number }, k: number) => (k === 0 ? loggedAt : new Date(now.getFullYear(), now.getMonth(), now.getDate(), m.at).toISOString());
   const left = (n: number) => Math.max(0, Math.round(n));
 
   return (
@@ -284,6 +312,15 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
           animate('fade', () => setSize(s));
         }}
       />
+      {size === 'day' ? (
+        <div className="card">
+          <span className="label">Rest of today</span>
+          <p>
+            {left(remaining.kcal)} kcal · P {left(remaining.protein)} g · C {left(remaining.carbs)} g · F {left(remaining.fat)} g
+          </p>
+          <p className="small muted">Split over {days.map((m) => m.label.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' and $1')}, from what's at home.</p>
+        </div>
+      ) : (
       <div className="card">
         <span className="label">{SIZE_OPTIONS.find((o) => o.value === size)!.label} meal</span>
         <p>
@@ -293,8 +330,42 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
           {left(remaining.kcal)} kcal left today
         </p>
       </div>
+      )}
 
-      {home.length === 0 ? (
+      {home.length > 0 && size === 'day' ? (
+        days.every((m) => m.items.length === 0) ? (
+          <EmptyState text="You've hit your targets for today." />
+        ) : (
+          days.map((m, k) => (
+            <section key={m.label} className="option">
+              <div className="option-head">
+                <h2>{m.label}</h2>
+                <span className="small muted">{left(sumMacros(m.items.map((i) => macrosFor(i.per100, i.grams))).kcal)} kcal</span>
+              </div>
+              {m.items.length === 0 && <p className="small muted">Nothing left at home that fits.</p>}
+              {m.items.map((i) => (
+                <div key={i.foodId} className="option-item">
+                  <strong>{amountLabel(i.grams, foods.find((f) => f.id === i.foodId)?.pieceGrams)}</strong>
+                  <span>
+                    {i.name}
+                    <span className="small muted">
+                      {formatMacros(macrosFor(i.per100, i.grams))}
+                      {butter && i.foodId === butter.id ? ' · for cooking' : ''}
+                    </span>
+                  </span>
+                </div>
+              ))}
+              {m.items.length > 0 && (
+                <Button
+                  title={`Log ${m.label.toLowerCase()}`}
+                  variant={k === 0 ? 'primary' : 'secondary'}
+                  onClick={() => nav.replace(<LogFormScreen log={newLog(timeFor(m, k), { items: m.items })} isNew />)}
+                />
+              )}
+            </section>
+          ))
+        )
+      ) : home.length === 0 ? (
         <EmptyState text="Tick the foods you have at home first." />
       ) : options.length === 0 ? (
         <EmptyState text="You've hit your targets for today." />

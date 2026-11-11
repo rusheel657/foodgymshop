@@ -171,6 +171,65 @@ export function suggestOptions(
 }
 
 /** Meal sizes as a share of the day's calories. */
+/** The day's meals: when each ends (hour, 24 h clock), a usual time to eat it, and its share of the day's calories. */
+export const MEALS = [
+  { label: 'Breakfast', until: 11, at: 8, share: 0.25 },
+  { label: 'Lunch', until: 15, at: 13, share: 0.3 },
+  { label: 'Snacks', until: 18, at: 16, share: 0.15 },
+  { label: 'Dinner', until: 24, at: 19, share: 0.3 },
+] as const;
+
+/** Which foods you eat at which meal, from logged items' hours: a food fits a meal once you've had it there twice.
+ *  Meals with under 5 logged items don't filter at all (not enough to go on). */
+export function mealFits(history: { hour: number; foodId: string | null }[]) {
+  const counts = new Map<string, Map<string, number>>();
+  for (const i of history) {
+    const meal = MEALS.find((m) => i.hour < m.until)!.label;
+    if (!i.foodId) continue;
+    const c = counts.get(meal) ?? new Map<string, number>();
+    c.set(i.foodId, (c.get(i.foodId) ?? 0) + 1);
+    counts.set(meal, c);
+  }
+  return (foodId: string, meal: string) => {
+    const c = counts.get(meal);
+    if (!c || [...c.values()].reduce((a, b) => a + b, 0) < 5) return true;
+    return (c.get(foodId) ?? 0) >= 2;
+  };
+}
+
+/** A plan for the rest of the day: one meal per meal time still to come (from `hour`), splitting `remaining` by their shares.
+ *  `maxGrams` caps one portion; `dayGrams` is what the whole day may use (at home, daily limit), shared across meals.
+ *  Foods used in an earlier meal are left out of later ones unless that makes the meal clearly worse (variety). */
+export function dayPlan(
+  remaining: Macros,
+  foods: (SuggestFood & { dayGrams: number })[],
+  butter: (Macros & { id: string; name: string }) | null,
+  hour: number,
+  fits: (foodId: string, meal: string) => boolean = () => true,
+): { label: string; at: number; plan: Suggestion[] }[] {
+  const meals = MEALS.filter((m) => m.until > hour);
+  const total = meals.reduce((t, m) => t + m.share, 0);
+  const left = new Map(foods.map((f) => [f.id, f.dayGrams]));
+  const used = new Set<string>();
+  const all = butter ? [...foods, butter] : foods;
+  return meals.map((m) => {
+    const k = m.share / total;
+    const target = { kcal: remaining.kcal * k, protein: remaining.protein * k, carbs: remaining.carbs * k, fat: remaining.fat * k };
+    const capped = foods.map((f) => ({ ...f, maxGrams: Math.max(0, Math.min(f.maxGrams, left.get(f.id) ?? 0)) }));
+    const usual = capped.filter((f) => fits(f.id, m.label));
+    const pool = usual.length >= 2 ? usual : capped; // too little to go on: any food
+    const fresh = suggest(target, pool.filter((f) => !used.has(f.id)), butter);
+    const any = suggest(target, pool, butter);
+    // A repeat is fine when the fresh plan misses by much more (e.g. only one protein source at home).
+    const plan = fresh.length && planError(target, fresh, all) <= planError(target, any, all) * 1.5 + 100 ? fresh : any;
+    for (const p of plan) {
+      left.set(p.foodId, (left.get(p.foodId) ?? 0) - p.grams);
+      if (p.foodId !== butter?.id) used.add(p.foodId);
+    }
+    return { label: m.label, at: m.at, plan };
+  });
+}
+
 export const MEAL_SIZES = { small: 0.2, medium: 0.33, large: 0.45 } as const;
 export type MealSize = keyof typeof MEAL_SIZES;
 

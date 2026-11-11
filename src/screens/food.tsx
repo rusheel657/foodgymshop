@@ -13,6 +13,7 @@ import { useNav } from '@/lib/nav';
 import { macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
 import { addPhoto, canUseCamera, photoSrc } from '@/lib/photos';
 import { costOf, money } from '@/lib/price';
+import { MEALS } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
 import { MyDietScreen } from '@/screens/diet';
 import { HistoryScreen } from '@/screens/history';
@@ -222,8 +223,8 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
             <strong>{money(spend.cost)} ›</strong>
           </button>
         )}
-        {MEAL_TIMES.map(({ label, until }, k) => {
-          const from = MEAL_TIMES[k - 1]?.until ?? 0;
+        {MEALS.map(({ label, until }, k) => {
+          const from = MEALS[k - 1]?.until ?? 0;
           const group = logs.filter((l) => {
             const h = new Date(l.loggedAt).getHours();
             return h >= from && h < until;
@@ -269,14 +270,6 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
     </main>
   );
 }
-
-/** Entries grouped by when they were eaten (hour the group ends, 24 h clock). */
-const MEAL_TIMES = [
-  { label: 'Breakfast', until: 11 },
-  { label: 'Lunch', until: 15 },
-  { label: 'Snacks', until: 18 },
-  { label: 'Dinner', until: 24 },
-];
 
 const TILE = {
   diet: 'M5 19c0-8 6-14 14-14 0 8-6 14-14 14zM5 19l7-7',

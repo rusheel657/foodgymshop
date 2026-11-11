@@ -172,5 +172,5 @@ export async function itemsBetween(from: string, to: string) {
      WHERE i.deleted_at IS NULL AND l.deleted_at IS NULL AND l.logged_at >= ? AND l.logged_at < ?`,
     [dayRange(from)[0], dayRange(to)[0]],
   );
-  return rows.map((r) => ({ day: ymd(new Date(r.logged_at)), foodId: r.food_id, name: r.name, grams: r.grams }));
+  return rows.map((r) => ({ day: ymd(new Date(r.logged_at)), hour: new Date(r.logged_at).getHours(), foodId: r.food_id, name: r.name, grams: r.grams }));
 }
