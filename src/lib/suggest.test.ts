@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dayPlan, mealFits, maxGramsFor, mealTarget, planError, planMacros, planShopping, suggest, suggestOptions, type Suggestion } from './suggest.ts';
+import { buildMeal, dayPlan, fitMeals, mealFits, maxGramsFor, mealTarget, planError, planMacros, planShopping, suggest, suggestOptions, type Suggestion } from './suggest.ts';
 
 const f = (id: string, name: string, kcal: number, protein: number, carbs: number, fat: number, maxGrams = 300) =>
   ({ id, name, kcal, protein, carbs, fat, maxGrams });
@@ -211,4 +211,28 @@ test('meals use foods you actually eat at that time of day', () => {
   const ids = (label: string) => day.find((m) => m.label === label)!.plan.map((p) => p.foodId);
   assert.ok(ids('Breakfast').every((id) => id === 'bread' || id === 'honey'), JSON.stringify(ids('Breakfast')));
   assert.ok(ids('Dinner').every((id) => id === 'chicken' || id === 'lamb'), JSON.stringify(ids('Dinner')));
+});
+
+test('saved meals scale to the target and need enough at home', () => {
+  const foods = [chicken, bread, lamb];
+  const meals = [
+    { id: 'm1', name: 'Chicken sandwich', items: [{ foodId: 'chicken', grams: 200 }, { foodId: 'bread', grams: 100 }] },
+    { id: 'm2', name: 'Lamb bowl', items: [{ foodId: 'lamb', grams: 300 }] },
+  ];
+  // Target is 1.4× the sandwich (P 58.7, C 44.1, F 3 at its saved amounts).
+  const target = { kcal: 780, protein: 82.2, carbs: 61.7, fat: 4.2 };
+  const fit = fitMeals(target, meals, foods, new Map([['chicken', 1000], ['bread', 1000], ['lamb', 1000]]));
+  assert.equal(fit[0].name, 'Chicken sandwich');
+  assert.ok(Math.abs(fit[0].scale - 1.4) < 0.02, String(fit[0].scale));
+  // Only 50 g of chicken at home: under half a portion, so the sandwich is out.
+  assert.deepEqual(fitMeals(target, meals, foods, new Map([['chicken', 50], ['bread', 1000], ['lamb', 1000]])).map((m) => m.name), ['Lamb bowl']);
+});
+
+test('meal builder keeps every craved food and suggests what would help', () => {
+  const target = { kcal: 700, protein: 50, carbs: 80, fat: 15 };
+  const r = buildMeal(target, [bread, honey], [chicken, lamb], null);
+  assert.ok(['bread', 'honey'].every((id) => r.plan.some((p) => p.foodId === id)), JSON.stringify(r.plan));
+  // Bread + honey has almost no protein or fat: both meats help (lamb also brings fat).
+  assert.deepEqual(r.tips.map((t) => t.food.id).sort(), ['chicken', 'lamb']);
+  assert.ok(r.tips[0].err < r.err);
 });

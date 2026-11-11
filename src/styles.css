@@ -593,3 +593,24 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 
 .app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
 .app-footer img { border-radius: 12px; margin-bottom: 4px; }
+
+.textarea { display: block; width: 100%; padding: 12px 16px; border: 0; outline: none; font: inherit; color: inherit; line-height: 1.45; resize: vertical; }
+.card .textarea { background: var(--bg); }
+
+/* What to eat: recipes and the meal builder */
+.recipe { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--bg); }
+.recipe ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.option .link.left { align-self: flex-start; padding: 4px 0; color: var(--accent); }
+.builder-entry { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 0; border-radius: 18px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); }
+.builder-entry:active { transform: scale(0.98); }
+.builder-entry-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--fat) 20%, transparent); color: var(--fat); }
+.builder-entry-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.builder-fit { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.builder-fit > span { display: flex; flex-direction: column; }
+.builder-fit strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.builder-fit .protein strong { color: var(--protein); }
+.builder-fit .carbs strong { color: var(--carbs); }
+.builder-fit .fat strong { color: var(--fat); }
+.builder-tips { display: flex; flex-direction: column; gap: 8px; }
+.builder-tip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--bg); text-align: left; }
+.builder-tip-add { flex: none; padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; }

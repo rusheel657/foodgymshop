@@ -97,3 +97,21 @@ export async function estimatePrice(name: string, packGrams: number | null): Pro
   }
   return data?.estimate ?? null;
 }
+
+export type Recipe = { name: string; steps: string[] };
+
+/** A short recipe (name + steps) for exactly these foods and grams, via the make-recipe Edge Function (Gemini). */
+export async function makeRecipe(items: { name: string; grams: number }[]): Promise<Recipe> {
+  const { data, error } = await supabase.functions.invoke<{ recipe: Recipe }>('make-recipe', { body: { items } });
+  if (error || !data?.recipe) {
+    const text = await (error?.context as Response | undefined)?.text?.().catch(() => '');
+    let detail = error?.message ?? 'no recipe';
+    try {
+      detail = JSON.parse(text ?? '').error ?? detail;
+    } catch {
+      // not JSON: keep the client's message
+    }
+    throw new Error(`Recipe failed: ${detail}`);
+  }
+  return data.recipe;
+}

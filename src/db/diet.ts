@@ -25,7 +25,7 @@ export type Food = Macros & {
 };
 
 export type MealItem = { foodId: string; grams: number };
-export type Meal = { id: string; name: string; photos: string[]; items: MealItem[] };
+export type Meal = { id: string; name: string; photos: string[]; items: MealItem[]; method?: string | null }; // method: one step per line
 
 type FoodRow = {
   id: string; name: string; kcal_100g: number; protein_100g: number; carbs_100g: number; fat_100g: number;
@@ -174,8 +174,8 @@ export async function clearShopList() {
 }
 
 export async function listMeals(): Promise<Meal[]> {
-  const meals = await all<{ id: string; name: string; ref_photo_paths: string }>(
-    'SELECT id, name, ref_photo_paths FROM meals WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE',
+  const meals = await all<{ id: string; name: string; ref_photo_paths: string; method: string | null }>(
+    'SELECT id, name, ref_photo_paths, method FROM meals WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE',
   );
   const items = await all<{ meal_id: string; food_id: string; grams: number }>(
     'SELECT meal_id, food_id, grams FROM meal_items WHERE deleted_at IS NULL ORDER BY rowid',
@@ -184,6 +184,7 @@ export async function listMeals(): Promise<Meal[]> {
     id: m.id,
     name: m.name,
     photos: JSON.parse(m.ref_photo_paths),
+    method: m.method,
     items: items.filter((i) => i.meal_id === m.id).map((i) => ({ foodId: i.food_id, grams: i.grams })),
   }));
 }
@@ -193,10 +194,10 @@ export async function saveMeal(userId: string, m: Meal) {
   const now = new Date().toISOString();
   await write(['meals', 'meal_items'], async () => {
     await run(
-      `INSERT INTO meals (id, user_id, updated_at, dirty, name, ref_photo_paths) VALUES (?, ?, ?, 1, ?, ?)
+      `INSERT INTO meals (id, user_id, updated_at, dirty, name, ref_photo_paths, method) VALUES (?, ?, ?, 1, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET updated_at = excluded.updated_at, dirty = 1,
-         name = excluded.name, ref_photo_paths = excluded.ref_photo_paths`,
-      [m.id, userId, now, m.name, JSON.stringify(m.photos)],
+         name = excluded.name, ref_photo_paths = excluded.ref_photo_paths, method = excluded.method`,
+      [m.id, userId, now, m.name, JSON.stringify(m.photos), m.method?.trim() || null],
     );
     await run(
       'UPDATE meal_items SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE meal_id = ? AND deleted_at IS NULL',

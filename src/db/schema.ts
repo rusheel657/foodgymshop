@@ -186,4 +186,6 @@ export const MIGRATIONS: string[] = [
   `,
   // 14: how hard a set felt, RPE 6–10 in half steps (10 = nothing left in the tank).
   `ALTER TABLE workout_sets ADD COLUMN rpe REAL;`,
+  // 15: how to make a saved meal (free text, one step per line).
+  `ALTER TABLE meals ADD COLUMN method TEXT;`,
 ];

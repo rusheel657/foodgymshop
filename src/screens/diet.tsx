@@ -470,6 +470,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
   const [name, setName] = useState(meal.name);
   const [items, setItems] = useState(meal.items.map((i) => ({ foodId: i.foodId, amount: showAmount(i.grams, pieceOf(i.foodId)) })));
   const [photos, setPhotos] = useState(meal.photos);
+  const [method, setMethod] = useState(meal.method ?? '');
   const [error, setError] = useState<string | null>(null);
 
   // `idx` = position in `items` (rows whose food was deleted are hidden, so positions differ).
@@ -487,7 +488,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
         : null;
 
   async function save() {
-    await saveMeal(userId, { id: meal.id, name: name.trim(), photos, items: live.map((i) => ({ foodId: i.foodId, grams: i.g })) });
+    await saveMeal(userId, { id: meal.id, name: name.trim(), photos, method, items: live.map((i) => ({ foodId: i.foodId, grams: i.g })) });
     // shortcut: photos added and then abandoned (back without saving) stay on disk; clean up in Phase 6 export/cleanup.
     await Promise.all(meal.photos.filter((p) => !photos.includes(p)).map(deletePhoto));
     nav.pop();
@@ -567,6 +568,17 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
           {cost.cost > 0 && ` · ${money(cost.cost)}${cost.unpriced ? ' (some foods have no price)' : ''}`}
         </p>
       </div>
+
+      <Field label="Method" hint="Optional. How to make it, one step per line. Shown when What should I eat? suggests this meal.">
+        <textarea
+          className="input textarea"
+          aria-label="Method"
+          rows={5}
+          value={method}
+          placeholder={'Brown the lamb in a hot pan.\nFry the eggs in butter.\nServe on the rice.'}
+          onChange={(e) => setMethod(e.target.value)}
+        />
+      </Field>
 
       <Field label="Reference photos" hint="Up to 2. Helps the AI recognise this meal later.">
         <div className="thumbs">

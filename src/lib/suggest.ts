@@ -39,7 +39,9 @@ function solve(vs: number[][], lo: number[], hi: number[], target: number[]) {
 /** Up to `maxFoods` picks (greedy: add whichever lowers the error most), grams rounded to 5 g or whole pieces.
  *  Picking a food also picks the foods it `needs`; it's skipped if one of them isn't available.
  *  Chicken/egg rows bring their cooking butter along as an extra row when `butter` is given. */
-export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros & { id: string; name: string }) | null, maxFoods = 4): Suggestion[] {
+export function suggest(
+  remaining: Macros, foods: SuggestFood[], butter: (Macros & { id: string; name: string }) | null, maxFoods = 4, force: string[] = [],
+): Suggestion[] {
   const target = [remaining.protein, remaining.carbs, remaining.fat].map((g) => Math.max(0, g));
   const eff = foods.map((f) => {
     const v = vec(f);
@@ -70,8 +72,12 @@ export function suggest(remaining: Macros, foods: SuggestFood[], butter: (Macros
     };
   };
 
-  let chosen: number[] = [];
-  let best = solve([], [], [], target);
+  // `force`: foods that must be in the plan (the meal builder's cravings); the greedy search adds to them.
+  let chosen: number[] = force.map((id) => index.get(id)).filter((i): i is number => i !== undefined);
+  let best = (() => {
+    const { lo, hi } = bounds(chosen);
+    return solve(chosen.map((j) => eff[j]), lo, hi, target);
+  })();
   while (chosen.length < maxFoods) {
     let pick: { set: number[]; res: ReturnType<typeof solve> } | null = null;
     for (let i = 0; i < foods.length; i++) {
@@ -288,4 +294,68 @@ export function planShopping(
     return [{ ...p, grams: Math.ceil(extra / step) * step }]; // buy whole pieces / round up
   });
   return { needed, short, fromHome, buy };
+}
+
+/** Your saved meals scaled to hit `target`, closest first. A meal only counts when all its foods are available and
+ *  there's enough of each for at least half a portion (`available`: grams usable per food id, at home / daily limit).
+ *  Scale is 0.5×–1.5× of the saved amounts, grams rounded to 5 g or whole pieces. */
+export function fitMeals(
+  target: Macros,
+  meals: { id: string; name: string; items: { foodId: string; grams: number }[] }[],
+  foods: (Macros & { id: string; name: string; pieceGrams?: number | null })[],
+  available: Map<string, number>,
+): { mealId: string; name: string; scale: number; plan: Suggestion[]; err: number }[] {
+  const t = [target.protein, target.carbs, target.fat];
+  const out = [];
+  for (const m of meals) {
+    if (m.items.length === 0 || !m.items.every((i) => available.has(i.foodId))) continue;
+    const per = [0, 0, 0];
+    for (const i of m.items) vec(foods.find((f) => f.id === i.foodId)!).forEach((v, k) => (per[k] += v * i.grams));
+    const den = [0, 1, 2].reduce((d, k) => d + W[k] * per[k] ** 2, 0);
+    if (den === 0) continue;
+    const best = [0, 1, 2].reduce((n, k) => n + W[k] * per[k] * t[k], 0) / den;
+    const most = Math.min(...m.items.map((i) => available.get(i.foodId)! / i.grams));
+    const scale = Math.min(1.5, most, Math.max(0.5, best));
+    if (scale < 0.5) continue; // not enough at home
+    const plan = m.items.map((i) => {
+      const f = foods.find((x) => x.id === i.foodId)!;
+      const step = f.pieceGrams || 5;
+      return { foodId: f.id, name: f.name, grams: Math.max(step, Math.round((i.grams * scale) / step) * step) };
+    });
+    out.push({ mealId: m.id, name: m.name, scale: Math.round(scale * 100) / 100, plan, err: planError(target, plan, foods) });
+  }
+  return out.sort((a, b) => a.err - b.err);
+}
+
+/** Meal builder: the foods you're craving, in amounts that best fit `target` (each at least a small portion so none
+ *  drops out), plus up to 3 tips: one more food from `others` that brings the meal clearly closer. */
+export function buildMeal(
+  target: Macros,
+  chosen: SuggestFood[],
+  others: SuggestFood[],
+  butter: (Macros & { id: string; name: string }) | null,
+): { plan: Suggestion[]; err: number; tips: { food: SuggestFood; plan: Suggestion[]; err: number }[] } {
+  const all = butter ? [...chosen, ...others, butter] : [...chosen, ...others];
+  // Each craved food gets at least a small portion, so none drops out; a tip food is free to find its own amount.
+  const solve = (foods: SuggestFood[], must: Set<string>) =>
+    suggest(
+      target,
+      foods.map((f) => (must.has(f.id) ? { ...f, minGrams: Math.max(f.minGrams ?? 0, Math.min(f.maxGrams, f.pieceGrams || 20)) } : f)),
+      butter,
+      foods.length,
+      [...must],
+    );
+  const must = new Set(chosen.map((f) => f.id));
+  const plan = solve(chosen, must);
+  const err = planError(target, plan, all);
+  const tips = others
+    .filter((f) => !must.has(f.id) && f.maxGrams > 0)
+    .map((food) => {
+      const p = solve([...chosen, food], must);
+      return { food, plan: p, err: planError(target, p, all) };
+    })
+    .filter((t) => t.plan.some((p) => p.foodId === t.food.id) && t.err < err * 0.75)
+    .sort((a, b) => a.err - b.err)
+    .slice(0, 3);
+  return { plan, err, tips };
 }
