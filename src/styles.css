@@ -620,6 +620,3 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .ai-meter { height: 6px; }
 .ai-meter > div { background: var(--fat); }
 .ai-meter.limited > div { background: var(--danger); }
-.ai-thinking { padding: 28px 0; text-align: center; color: var(--muted); animation: pulse 1.4s ease-in-out infinite; }
-@keyframes pulse { 50% { opacity: 0.45; } }
-.option-idea { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }

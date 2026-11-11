@@ -123,26 +123,3 @@ export async function makeRecipe(items: { name: string; grams: number }[]): Prom
   }
   return data.recipe;
 }
-
-export type MealIdea = { name: string; foodIds: string[] };
-
-/** Gemini's ideas for which of your at-home foods go together, per meal label (the app sets the grams). */
-export async function mealIdeas(body: {
-  meals: { label: string; kcal: number; protein: number; carbs: number; fat: number }[];
-  foods: { id: string; name: string }[];
-  recent: string[];
-  perMeal: number;
-}): Promise<Record<string, MealIdea[]>> {
-  const { data, error } = await aiInvoke<{ ideas: Record<string, MealIdea[]> }>('meal-ideas', body);
-  if (error || !data?.ideas) {
-    const text = await (error?.context as Response | undefined)?.text?.().catch(() => '');
-    let detail = error?.message ?? 'no ideas';
-    try {
-      detail = JSON.parse(text ?? '').error ?? detail;
-    } catch {
-      // not JSON: keep the client's message
-    }
-    throw new Error(detail);
-  }
-  return data.ideas;
-}

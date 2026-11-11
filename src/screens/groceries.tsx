@@ -68,7 +68,7 @@ export function GroceryScanScreen({ photo }: { photo: string }) {
         await saveFood(userId, {
           id, name: r.name, ...r.per100!, defaultGrams: null, source: 'manual', sourceId: 'ai-groceries', barcode: null,
           shopQty: 0, atHome: true, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null,
-          pairsWith: [], disabled: false, photo: null,
+          pairsWith: [], disabled: false, recipeOnly: false, photo: null,
         });
       }
       await restock(id, grams(r));

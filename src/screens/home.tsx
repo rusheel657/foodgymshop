@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button, EmptyState, Meter, NumberInput, num, Page, Segmented } from '@/components/ui';
 import { listFoods, listMeals, listStockChanges, saveMeal, setAtHome, setHomeGrams, type Food, type StockReason } from '@/db/diet';
@@ -10,10 +10,10 @@ import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import { addPhoto, canUseCamera } from '@/lib/photos';
 import { amountLabel, formatMacros, lastsFor, macrosFor, showAmount, sumMacros, toGrams, unitOf, type LogItem, type Macros } from '@/lib/nutrition';
-import { buildMeal, dayPlan, fitMeals, mealFits, MEALS, maxGramsFor, suggest, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
+import { buildMeal, dayPlan, fitMeals, mealFits, MEALS, maxGramsFor, MEAL_SIZES, mealTarget, suggestOptions, type MealSize } from '@/lib/suggest';
 import { useAccount } from '@/lib/account';
 import { AI_DAILY_BUDGET, useAiUsage } from '@/lib/ai-usage';
-import { makeRecipe, mealIdeas, type MealIdea, type Recipe } from '@/lib/supabase';
+import { makeRecipe, type Recipe } from '@/lib/supabase';
 import { useLive } from '@/lib/use-live';
 import { FoodGrid } from '@/components/food-grid';
 import { GroceryScanScreen } from '@/screens/groceries';
@@ -266,10 +266,11 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
   const home = foods.filter((f) => f.atHome); // butter included: it's a fat source too (capped like other dense foods)
   // Chicken and eggs are cooked in butter: use the butter from My Diet (at home first).
   const butter = foods.find((f) => isButter(f) && f.atHome) ?? foods.find(isButter) ?? null;
-  const usualNow = home.filter((f) => fits(f.id, mealNow));
+  const pickable = home.filter((f) => !f.recipeOnly); // recipe-only foods come in only through saved meals and as cooking fat
+  const usualNow = pickable.filter((f) => fits(f.id, mealNow));
   const options = suggestOptions(
     meal,
-    (usualNow.length >= 2 ? usualNow : home).map((f) => ({
+    (usualNow.length >= 2 ? usualNow : pickable).map((f) => ({
       ...f,
       maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0), f.minGrams, f.maxPortionGrams),
       // A pairing with a deleted food is ignored; one with a food that's not at home rules this food out.
@@ -293,7 +294,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
     size === 'day'
       ? dayPlan(
           remaining,
-          home.map((f) => ({
+          pickable.map((f) => ({
             ...f,
             maxGrams: maxGramsFor(f.kcal, usual.get(f.id), null, null, f.minGrams, f.maxPortionGrams),
             dayGrams: Math.min(f.homeGrams ?? Infinity, f.dailyMaxGrams === null ? Infinity : Math.max(0, f.dailyMaxGrams - (eaten.get(f.id) ?? 0))),
@@ -315,47 +316,6 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
     .map((m) => ({ ...m, items: toItems(m.plan), method: meals.find((x) => x.id === m.mealId)?.method ?? null }))
     .filter((m) => Math.abs(sumMacros(m.items.map((i) => macrosFor(i.per100, i.grams))).kcal - meal.kcal) <= meal.kcal * 0.25)
     .slice(0, 2);
-
-  // AI ideas (which foods go together) for this meal, or one per meal for the full day; the maths then sets the grams.
-  const planned = size === 'day' ? MEALS.filter((m) => m.until > now.getHours()) : MEALS.filter((m) => m.label === mealNow);
-  const shareLeft = planned.reduce((t, m) => t + m.share, 0);
-  const ideaBody = {
-    meals: planned.map((m) => {
-      const k = size === 'day' ? m.share / shareLeft : 1;
-      const t = size === 'day' ? remaining : meal;
-      return { label: m.label, kcal: Math.max(0, t.kcal * k), protein: Math.max(0, t.protein * k), carbs: Math.max(0, t.carbs * k), fat: Math.max(0, t.fat * k) };
-    }),
-    foods: home.map((f) => ({ id: f.id, name: f.name })),
-    recent: recentMeals(history, foods),
-    perMeal: size === 'day' ? 1 : 3,
-  };
-  const ideaKey = `${day}|${size === 'day' ? 'day' : mealNow}|${home.map((f) => f.id).sort().join()}`;
-  const asSuggestNow = (f: Food) => ({
-    ...f,
-    maxGrams: maxGramsFor(f.kcal, usual.get(f.id), f.homeGrams, f.dailyMaxGrams === null ? null : f.dailyMaxGrams - (eaten.get(f.id) ?? 0), f.minGrams, f.maxPortionGrams),
-    needs: [],
-  });
-  const ideaPlans = (ideas: MealIdea[]) =>
-    ideas
-      .map((idea) => {
-        const inIdea = idea.foodIds.map((id) => home.find((f) => f.id === id)).filter((f): f is Food => !!f);
-        return { name: idea.name, items: toItems(suggest(meal, inIdea.map(asSuggestNow), butter, inIdea.length, inIdea.map((f) => f.id))) };
-      })
-      .filter((p) => p.items.length > 0);
-  // Full day with ideas: each meal may only use its idea's foods (falls back to the usual picks without one).
-  const dayWithIdeas = (ideas: Record<string, MealIdea[]>) =>
-    dayPlan(
-      remaining,
-      home.map((f) => ({
-        ...f,
-        maxGrams: maxGramsFor(f.kcal, usual.get(f.id), null, null, f.minGrams, f.maxPortionGrams),
-        dayGrams: Math.min(f.homeGrams ?? Infinity, f.dailyMaxGrams === null ? Infinity : Math.max(0, f.dailyMaxGrams - (eaten.get(f.id) ?? 0))),
-        needs: [],
-      })),
-      butter,
-      now.getHours(),
-      (id, label) => (ideas[label]?.[0] ? ideas[label][0].foodIds.includes(id) : fits(id, label)),
-    ).map((m) => ({ ...m, idea: ideas[m.label]?.[0]?.name, items: toItems(m.plan) }));
 
   return (
     <Page title="What to eat">
@@ -403,22 +363,13 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
       )}
 
       {home.length > 0 && size === 'day' ? (
-        <AiIdeas cacheKey={ideaKey} body={ideaBody}>
-          {(ai) => {
-          const plan = ai.ideas ? dayWithIdeas(ai.ideas) : days.map((m) => ({ ...m, idea: undefined as string | undefined }));
-          return ai.loading ? <p className="ai-thinking">✦ Planning your day…</p> : (
-          <>
-          {ai.error && <p className="small muted">AI ideas unavailable ({ai.error}), so these are calculated combinations.</p>}
-          {plan.every((m) => m.items.length === 0) ? (
+        days.every((m) => m.items.length === 0) ? (
           <EmptyState text="You've hit your targets for today." />
         ) : (
-          plan.map((m, k) => (
+          days.map((m, k) => (
             <section key={m.label} className="option">
               <div className="option-head">
-                <h2>
-                  {m.label}
-                  {m.idea && <span className="option-idea">{m.idea}</span>}
-                </h2>
+                <h2>{m.label}</h2>
                 <span className="small muted">{left(sumMacros(m.items.map((i) => macrosFor(i.per100, i.grams))).kcal)} kcal</span>
               </div>
               {m.items.length === 0 && <p className="small muted">Nothing left at home that fits.</p>}
@@ -432,11 +383,7 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
               )}
             </section>
           ))
-          )}
-          </>
-          );
-          }}
-        </AiIdeas>
+        )
       ) : home.length === 0 ? (
         <EmptyState text="Tick the foods you have at home first." />
       ) : options.length === 0 ? (
@@ -454,34 +401,22 @@ export function SuggestScreen({ remaining, loggedAt }: { remaining: Macros; logg
               <Button title="Log this" onClick={() => nav.replace(<LogFormScreen log={newLog(loggedAt, { mealId: m.mealId, items: m.items })} isNew />)} />
             </section>
           ))}
-          <AiIdeas cacheKey={ideaKey} body={ideaBody}>
-            {(ai) => {
-              const fromAi = ai.ideas ? ideaPlans(ai.ideas[mealNow] ?? []) : [];
-              const list = fromAi.length ? fromAi : options.map((items, n) => ({ name: `Option ${n + 1}`, items }));
-              if (ai.loading) return <p className="ai-thinking">✦ Thinking up meals…</p>;
-              return (
-                <>
-                  {ai.error && <p className="small muted">AI ideas unavailable ({ai.error}), so these are calculated combinations.</p>}
-                  {list.map(({ name, items }, n) => (
-                    <section key={name + items.map((i) => i.foodId).join()} className="option">
-                      <div className="option-head">
-                        <h2>{name}</h2>
-                        {fromAi.length > 0 ? <span className="chip">AI idea</span> : n === 0 && savedFits.length === 0 && <span className="chip">Closest match</span>}
-                      </div>
-                      <OptionItems items={items} foods={foods} butterId={butter?.id} />
-                      <p className="option-total small">Adds {formatMacros(sumMacros(items.map((i) => macrosFor(i.per100, i.grams))))}</p>
-                      <RecipeBox items={items} mealName={fromAi.length ? name : undefined} />
-                      <Button
-                        title="Log this"
-                        variant={n === 0 && savedFits.length === 0 ? 'primary' : 'secondary'}
-                        onClick={() => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />)}
-                      />
-                    </section>
-                  ))}
-                </>
-              );
-            }}
-          </AiIdeas>
+          {options.map((items, n) => (
+            <section key={items.map((i) => i.foodId).join()} className="option">
+              <div className="option-head">
+                <h2>Option {n + 1}</h2>
+                {n === 0 && savedFits.length === 0 && <span className="chip">Closest match</span>}
+              </div>
+              <OptionItems items={items} foods={foods} butterId={butter?.id} />
+              <p className="option-total small">Adds {formatMacros(sumMacros(items.map((i) => macrosFor(i.per100, i.grams))))}</p>
+              <RecipeBox items={items} />
+              <Button
+                title="Log this"
+                variant={n === 0 && savedFits.length === 0 ? 'primary' : 'secondary'}
+                onClick={() => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />)}
+              />
+            </section>
+          ))}
         </>
       )}
       <Button title="Edit what's at home" variant="secondary" onClick={() => nav.push(<AtHomeScreen />)} />
@@ -590,7 +525,7 @@ function MealBuilderScreen({ target, loggedAt }: { target: Macros; loggedAt: str
     needs: [],
   });
   const chosen = foods.filter((f) => picked.includes(f.id)).map(asSuggest);
-  const others = foods.filter((f) => f.atHome && !picked.includes(f.id)).map(asSuggest);
+  const others = foods.filter((f) => f.atHome && !f.recipeOnly && !picked.includes(f.id)).map(asSuggest);
   const result = chosen.length ? buildMeal(target, chosen, others, butter) : null;
   const toItems = (plan: { foodId: string; grams: number }[]) =>
     plan.map((p): LogItem => {
@@ -656,63 +591,6 @@ function MealBuilderScreen({ target, loggedAt }: { target: Macros; loggedAt: str
       </section>
     </Page>
   );
-}
-
-/** "Greek yoghurt + Oats (Breakfast)" for your most recent logged meals (up to 20), so AI ideas match how you eat. */
-function recentMeals(history: { day: string; hour: number; foodId: string | null; name: string }[], foods: Food[]) {
-  const byMeal = new Map<string, Set<string>>();
-  for (const i of history) {
-    const key = `${i.day}|${MEALS.find((m) => i.hour < m.until)!.label}`;
-    const names = byMeal.get(key) ?? new Set<string>();
-    names.add(foods.find((f) => f.id === i.foodId)?.name ?? i.name);
-    byMeal.set(key, names);
-  }
-  return [...byMeal.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 20)
-    .map(([key, names]) => `${[...names].join(' + ')} (${key.split('|')[1]})`);
-}
-
-const IDEAS_KEY = 'meal-ideas';
-
-/** Fetches AI meal ideas once per `cacheKey` (today's meal and what's at home) and keeps them for the day. */
-function AiIdeas({ cacheKey, body, children }: {
-  cacheKey: string;
-  body: Parameters<typeof mealIdeas>[0];
-  children: (ai: { loading: boolean; ideas?: Record<string, MealIdea[]>; error?: string }) => ReactNode;
-}) {
-  const cached = () => {
-    try {
-      return (JSON.parse(localStorage.getItem(IDEAS_KEY) ?? '{}') as Record<string, Record<string, MealIdea[]>>)[cacheKey];
-    } catch {
-      return undefined;
-    }
-  };
-  const [state, setState] = useState<{ key: string; ideas?: Record<string, MealIdea[]>; error?: string }>(() => ({ key: cacheKey, ideas: cached() }));
-  useEffect(() => {
-    const hit = cached();
-    if (hit) return setState({ key: cacheKey, ideas: hit });
-    setState({ key: cacheKey });
-    let live = true;
-    mealIdeas(body)
-      .then((ideas) => {
-        try {
-          const day = cacheKey.split('|')[0];
-          const all = JSON.parse(localStorage.getItem(IDEAS_KEY) ?? '{}') as Record<string, unknown>;
-          const today = Object.fromEntries(Object.entries(all).filter(([k]) => k.startsWith(day))); // keep today's only
-          localStorage.setItem(IDEAS_KEY, JSON.stringify({ ...today, [cacheKey]: ideas }));
-        } catch {
-          // storage blocked: just don't cache
-        }
-        if (live) setState({ key: cacheKey, ideas });
-      })
-      .catch((e: Error) => live && setState({ key: cacheKey, error: e.message }));
-    return () => {
-      live = false;
-    };
-  }, [cacheKey]);
-  const loading = state.key !== cacheKey || (!state.ideas && !state.error);
-  return <>{children({ loading, ideas: state.key === cacheKey ? state.ideas : undefined, error: state.key === cacheKey ? state.error : undefined })}</>;
 }
 
 /** Beta: today's AI requests from this phone against a daily budget, and whether Gemini's limit was hit. */

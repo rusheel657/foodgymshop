@@ -188,4 +188,6 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE workout_sets ADD COLUMN rpe REAL;`,
   // 15: how to make a saved meal (free text, one step per line).
   `ALTER TABLE meals ADD COLUMN method TEXT;`,
+  // 16: a food only used for cooking (chicken/eggs) and in saved meals, never suggested on its own (butter).
+  `ALTER TABLE foods ADD COLUMN recipe_only INTEGER NOT NULL DEFAULT 0;`,
 ];

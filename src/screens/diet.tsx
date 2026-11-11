@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { FoodGrid, LinkIcon } from '@/components/food-grid';
-import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, Segmented, TextInput } from '@/components/ui';
 import {
   deleteFood, deleteMeal, listFoods, listMeals, mealMacros, saveFood, saveMeal, setDisabled, type Food, type Meal,
 } from '@/db/diet';
@@ -22,7 +22,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null, pairsWith: [], disabled: false, photo: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null, pairsWith: [], disabled: false, recipeOnly: false, photo: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -225,6 +225,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
     price: str(food.packPrice),
   });
   const [pairs, setPairs] = useState(food.pairsWith);
+  const [recipeOnly, setRecipeOnly] = useState(food.recipeOnly);
   const [photo, setPhoto] = useState(food.photo);
   const allFoods = useLive(() => listFoods(true), ['foods']);
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
@@ -270,7 +271,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, packGrams: pack, packPrice: price,
-      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo,
+      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo, recipeOnly,
     });
     // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
     if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
@@ -397,6 +398,13 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
       </Field>
       <Field label="Smallest portion" hint="Optional. What should I eat? either leaves it out or gives you at least this much.">
         <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece)} placeholder="none" />
+      </Field>
+      <Field label="Suggest it" hint="Cooking and saved meals only: What should I eat? never picks it on its own (like butter you only cook with or use in one recipe). It still goes into your saved meals and as cooking fat.">
+        <Segmented
+          options={[{ value: 'any', label: 'In any meal' }, { value: 'recipe', label: 'Cooking & saved meals' }] as const}
+          value={recipeOnly ? 'recipe' : 'any'}
+          onChange={(v) => setRecipeOnly(v === 'recipe')}
+        />
       </Field>
       <Field label="Largest portion" hint="Optional. The most What should I eat? suggests at once. Without it, that's about twice your usual portion.">
         <NumberInput label="Largest portion" value={d.max} onChange={(m) => set({ max: m })} suffix={unitOf(piece)} placeholder="auto" />

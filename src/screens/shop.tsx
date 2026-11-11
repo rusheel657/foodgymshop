@@ -53,10 +53,11 @@ async function loadShopping(profile: Profile, days: number, mode: ShopMode) {
   const capForSpan = (f: Food) => span * maxGramsFor(f.kcal, f.defaultGrams ?? undefined, null, null, f.minGrams, f.maxPortionGrams);
   const atHome = (f: Food) => (f.atHome ? Math.min(f.homeGrams ?? capForSpan(f), limitLeft(f)) : 0);
   // Butter counts as a food too (its fat is real food at home), besides being cooking butter for chicken and eggs.
-  const stock = foods.filter((f) => f.atHome).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
+  // Recipe-only foods (butter for cooking) never fill macros on their own.
+  const stock = foods.filter((f) => f.atHome && !f.recipeOnly).map((f) => ({ ...f, needs: needs(f), maxGrams: atHome(f) }));
   // To buy: a normal portion cap for each day (50 g a day for dense foods like honey or chocolate),
   // and never so much that home + bought passes the daily limit.
-  const catalog = foods.map((f) => ({
+  const catalog = foods.filter((f) => !f.recipeOnly).map((f) => ({
     ...f,
     needs: needs(f),
     maxGrams: Math.max(0, Math.min(capForSpan(f), limitLeft(f) - atHome(f))),
