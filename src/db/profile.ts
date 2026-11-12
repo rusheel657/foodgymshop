@@ -1,4 +1,5 @@
 import { all, first, run, write } from '@/db/db';
+import { tickWeighHabits } from '@/lib/rshabits';
 import { ageOn, computeTargets, type Goal, type Sex, type Targets } from '@/lib/targets';
 
 export type Profile = {
@@ -103,6 +104,7 @@ export async function saveProfile(userId: string, p: Profile, previousWeightKg?:
       );
     }
   });
+  if (p.weightKg !== previousWeightKg) void tickWeighHabits(localDate());
 }
 
 // ---- Weight log (the latest entry is the profile's weight) ----
@@ -127,6 +129,7 @@ export async function saveWeight(userId: string, date: string, kg: number) {
       [crypto.randomUUID(), userId, now, date, kg],
     ),
   );
+  void tickWeighHabits(date);
 }
 
 export async function deleteWeight(id: string) {

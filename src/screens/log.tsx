@@ -13,6 +13,7 @@ import {
 } from '@/lib/nutrition';
 import { canUseCamera, deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { money, priceFor } from '@/lib/price';
+import { habitsLink, mealTitle, postMealToHabits } from '@/lib/rshabits';
 import { analyzeMeal } from '@/lib/supabase';
 import { BUTTER_PER_GRAM } from '@/lib/suggest';
 import { pairLinks } from '@/lib/pairs';
@@ -259,6 +260,21 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
     alert(own.length < rows.length ? `Saved "${title}" to My Diet (one-off items left out).` : `Saved "${title}" to My Diet.`);
   }
 
+  const [posting, setPosting] = useState(false);
+  const [posted, setPosted] = useState(false);
+  async function postToHabits() {
+    setPosting(true);
+    try {
+      const title = name.trim() || meals.find((m) => m.id === mealId)?.name || rows.map((r) => r.item.name).join(', ');
+      await postMealToHabits(log.photoPath!, mealTitle(title, total));
+      setPosted(true);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setPosting(false);
+    }
+  }
+
   async function remove() {
     if (!confirm('Delete this entry?')) return;
     await deleteLog(log.id);
@@ -361,6 +377,9 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
 
       {invalid && <p className="small muted">{invalid}</p>}
       <Button title={isNew ? 'Log' : 'Save'} onClick={save} disabled={!!invalid} />
+      {log.photoPath && habitsLink() && (
+        <Button title={posted ? 'Posted to RSHabits ✓' : 'Post to RSHabits'} variant="secondary" onClick={postToHabits} busy={posting} disabled={posted || !!invalid} />
+      )}
       {isNew ? (
         !mealId && <Button title="Save as a meal" variant="secondary" onClick={saveAsMeal} disabled={!!invalid} />
       ) : (

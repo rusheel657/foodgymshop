@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import { ProfileForm } from '@/components/profile-form';
-import { Button, EmptyState, ListRow, Page, Screen, Segmented } from '@/components/ui';
+import { Button, EmptyState, ListRow, Page, Screen, Segmented, TextInput } from '@/components/ui';
 import { clearShopList, listFoods, setShopQty } from '@/db/diet';
 import { saveProfile } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { connectHealth, healthStatus } from '@/lib/health';
+import { connectHabits, disconnectHabits, habitsLink } from '@/lib/rshabits';
 import { useLive } from '@/lib/use-live';
 import { supabase } from '@/lib/supabase';
 import { useNav } from '@/lib/nav';
@@ -87,6 +88,7 @@ export function ProfileScreen() {
       <section className="settings-group">
         <h2 className="section-title">Connections</h2>
         <HealthCard />
+        <HabitsCard />
       </section>
 
       <section className="settings-group">
@@ -126,6 +128,43 @@ function BodyGoalScreen() {
         }}
       />
     </Page>
+  );
+}
+
+/** RSHabits: paste the code from RSHabits (You → Health → RSFitness) once. */
+function HabitsCard() {
+  const [link, setLink] = useState(habitsLink);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function connect() {
+    setBusy(true);
+    try {
+      await connectHabits(code);
+      setLink(habitsLink());
+      setCode('');
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="card stack-sm">
+      <strong>RSHabits {link && <span className="chip">Connected</span>}</strong>
+      <p className="small muted">
+        {link
+          ? `Linked${link.name ? ` to ${link.name}` : ''}. Logging your weight ticks habits like “Weigh myself”, and photo meals can be posted to your RSHabits Meals photos.`
+          : 'Logging your weight ticks habits like “Weigh myself” in RSHabits, and photo meals can be posted there with their macros. In RSHabits, open You → Health → RSFitness → Connect, copy the code and paste it here.'}
+      </p>
+      {link ? (
+        <Button title="Disconnect" variant="secondary" onClick={() => confirm('Disconnect RSHabits?') && (disconnectHabits(), setLink(null))} />
+      ) : (
+        <>
+          <TextInput label="RSHabits code" value={code} onChange={setCode} placeholder="rsf_…" />
+          <Button title="Connect" onClick={connect} busy={busy} disabled={!code.trim()} />
+        </>
+      )}
+    </div>
   );
 }
 
