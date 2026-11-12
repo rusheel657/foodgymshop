@@ -28,6 +28,12 @@ const fromFood = (f: Food, grams: number): LogItem => ({
   per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
 });
 
+const mealItems = (m: Meal, foods: Food[]) =>
+  m.items.flatMap((i) => {
+    const f = foods.find((x) => x.id === i.foodId);
+    return f ? [fromFood(f, i.grams)] : [];
+  });
+
 /** A one-off item from a scanned barcode: your My Diet food if it has that barcode, else the Open Food Facts product
  *  (100 g to start, not added to My Diet). null when cancelled. */
 async function scanItem(foods: Food[]): Promise<LogItem | null> {
@@ -129,8 +135,9 @@ export function AnalyzeScreen({ photo, loggedAt }: { photo: string; loggedAt: st
 export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
   const nav = useNav();
   const foods = useLive(() => listFoods(), ['foods']);
+  const meals = useLive(listMeals, ['meals', 'meal_items']);
   const [picked, setPicked] = useState<string[]>([]);
-  if (!foods) return null;
+  if (!foods || !meals) return null;
   const links = pairLinks(foods);
   const chosen = picked.flatMap((id) => foods.find((f) => f.id === id) ?? []);
   // Picked foods that are only eaten with others not picked yet, e.g. yoghurt without its honey.
@@ -139,7 +146,7 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
     .filter((h) => h.missing.length > 0);
   const wanted = new Set(hints.flatMap((h) => h.missing.map((f) => f.id)));
   const toggle = (f: Food) => setPicked((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]));
-  const next = (items: LogItem[]) => nav.replace(<LogFormScreen log={newLog(loggedAt, { items })} isNew />);
+  const next = (items: LogItem[], mealId: string | null = null) => nav.replace(<LogFormScreen log={newLog(loggedAt, { items, mealId })} isNew />);
   const pickedItems = () => chosen.map((f) => fromFood(f, f.defaultGrams ?? f.pieceGrams ?? 100));
 
   return (
@@ -171,8 +178,23 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
         </div>
       ))}
       <FoodGrid foods={foods} picked={new Map(picked.map((id) => [id, 1]))} wanted={wanted} onPick={toggle} />
+      {meals.length > 0 && (
+        <section className="stack-sm">
+          <h2 className="section-title">Saved meals</h2>
+          <div className="list">
+            {meals.map((m) => (
+              <ListRow
+                key={m.id}
+                title={m.name}
+                subtitle={formatMacros(mealMacros(m, foods))}
+                onClick={() => next([...pickedItems(), ...mealItems(m, foods)], m.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <button type="button" className="link" onClick={() => next([])}>
-        Saved meal or something not in My Diet
+        Something not in My Diet
       </button>
       <div className="pick-bar">
         <Button
@@ -316,10 +338,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
                   meals={meals}
                   foods={foods}
                   onPick={(m) => {
-                    add(m.items.flatMap((i) => {
-                      const f = foods.find((x) => x.id === i.foodId);
-                      return f ? [fromFood(f, i.grams)] : [];
-                    }));
+                    add(mealItems(m, foods));
                     setMealId((id) => id ?? m.id);
                     nav.pop();
                   }}
@@ -342,7 +361,9 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
 
       {invalid && <p className="small muted">{invalid}</p>}
       <Button title={isNew ? 'Log' : 'Save'} onClick={save} disabled={!!invalid} />
-      {!isNew && (
+      {isNew ? (
+        !mealId && <Button title="Save as a meal" variant="secondary" onClick={saveAsMeal} disabled={!!invalid} />
+      ) : (
         <div className="row">
           <Button title="Copy to today" variant="secondary" onClick={copyToToday} disabled={!!invalid} />
           <Button title="Save as a meal" variant="secondary" onClick={saveAsMeal} disabled={!!invalid} />
