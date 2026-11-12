@@ -67,17 +67,46 @@ export async function tickWeighHabits(day?: string) {
   write(PENDING, left.length ? left.slice(-3) : null); // RSHabits only takes today and yesterday anyway
 }
 
-/** Posts a meal photo (app storage URI) to your RSHabits "Meals" photos. `title` is cut to RSHabits' 80 characters. */
-export async function postMealToHabits(photo: string, title: string) {
+type Macros = { kcal: number; protein: number; carbs: number; fat: number };
+
+/** Posts a meal photo (app storage URI) to your RSHabits "Meals" photos, titled with its name (cut to RSHabits' 80
+ *  characters). `macros`: drawn on the photo as a sticker; null posts the photo as it is. */
+export async function postMealToHabits(photo: string, title: string, macros: Macros | null) {
   const link = habitsLink();
   if (!link) throw new Error('Connect RSHabits in Profile first.');
-  await call({ code: link.code, action: 'meal', image: await photoBase64(photo, 1280), title: title.slice(0, 80) });
+  const image = await photoBase64(photo, 1280, macros ? (ctx, w, h) => drawSticker(ctx, w, h, macros) : undefined);
+  const t = title.trim() || 'Meal';
+  await call({ code: link.code, action: 'meal', image, title: t.length > 80 ? `${t.slice(0, 79).trimEnd()}…` : t });
 }
 
-/** "Chicken rice · 650 kcal · P 45 C 60 F 20", the name shortened so it fits in 80 characters. */
-export function mealTitle(name: string, m: { kcal: number; protein: number; carbs: number; fat: number }) {
-  const macros = ` · ${Math.round(m.kcal)} kcal · P ${Math.round(m.protein)} C ${Math.round(m.carbs)} F ${Math.round(m.fat)}`;
-  const room = 80 - macros.length;
-  const n = name.trim() || 'Meal';
-  return (n.length > room ? `${n.slice(0, room - 1).trimEnd()}…` : n) + macros;
+/** Whether posts get the macros sticker (remembered on this device; on by default). */
+export const stickerOn = () => read<boolean>('rshabits-sticker', true);
+export const setStickerOn = (on: boolean) => write('rshabits-sticker', on);
+
+/** A white rounded card in the bottom-left corner: calories big, then protein · carbs · fat. */
+function drawSticker(ctx: CanvasRenderingContext2D, w: number, h: number, m: Macros) {
+  const u = Math.min(w, h) / 100; // sizes scale with the photo
+  const big = `${Math.round(m.kcal)} kcal`;
+  const small = `P ${Math.round(m.protein)}g · C ${Math.round(m.carbs)}g · F ${Math.round(m.fat)}g`;
+  const font = (px: number, weight: number) => `${weight} ${px}px -apple-system, Roboto, "Segoe UI", sans-serif`;
+  ctx.font = font(7 * u, 800);
+  const bw = ctx.measureText(big).width;
+  ctx.font = font(3.8 * u, 600);
+  const sw = ctx.measureText(small).width;
+  const pad = 3.5 * u, cw = Math.max(bw, sw) + pad * 2, ch = 19 * u, x = 4 * u, y = h - ch - 4 * u;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 3 * u;
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, cw, ch, 4 * u);
+  ctx.fill();
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#111';
+  ctx.font = font(7 * u, 800);
+  ctx.fillText(big, x + pad, y + pad + 6 * u);
+  ctx.fillStyle = '#555';
+  ctx.font = font(3.8 * u, 600);
+  ctx.fillText(small, x + pad, y + ch - pad);
 }

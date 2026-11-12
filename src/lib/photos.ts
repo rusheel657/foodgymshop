@@ -30,7 +30,8 @@ export const photoSrc = (uri: string) => Capacitor.convertFileSrc(uri);
 export const canUseCamera = Capacitor.isNativePlatform();
 
 /** Photo → base64 JPEG (no data: prefix), scaled so its longest side is at most `max` px. Keeps AI uploads small. */
-export async function photoBase64(uri: string, max = 1024): Promise<string> {
+/** `draw`: paints on top of the scaled photo before it's encoded (e.g. a sticker). */
+export async function photoBase64(uri: string, max = 1024, draw?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): Promise<string> {
   const img = new Image();
   await new Promise((resolve, reject) => {
     img.onload = resolve;
@@ -41,6 +42,8 @@ export async function photoBase64(uri: string, max = 1024): Promise<string> {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(img.naturalWidth * scale);
   canvas.height = Math.round(img.naturalHeight * scale);
-  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  draw?.(ctx, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { LinkIcon, FoodGrid } from '@/components/food-grid';
-import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, TextInput } from '@/components/ui';
+import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, Segmented, TextInput } from '@/components/ui';
 import { listFoods, listMeals, mealMacros, saveMeal, type Food, type Meal } from '@/db/diet';
 import { deleteLog, logTimeFor, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
@@ -13,7 +13,7 @@ import {
 } from '@/lib/nutrition';
 import { canUseCamera, deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { money, priceFor } from '@/lib/price';
-import { habitsLink, mealTitle, postMealToHabits } from '@/lib/rshabits';
+import { habitsLink, postMealToHabits, setStickerOn, stickerOn } from '@/lib/rshabits';
 import { analyzeMeal } from '@/lib/supabase';
 import { BUTTER_PER_GRAM } from '@/lib/suggest';
 import { pairLinks } from '@/lib/pairs';
@@ -262,11 +262,12 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
 
   const [posting, setPosting] = useState(false);
   const [posted, setPosted] = useState(false);
+  const [sticker, setSticker] = useState(stickerOn);
   async function postToHabits() {
     setPosting(true);
     try {
       const title = name.trim() || meals.find((m) => m.id === mealId)?.name || rows.map((r) => r.item.name).join(', ');
-      await postMealToHabits(log.photoPath!, mealTitle(title, total));
+      await postMealToHabits(log.photoPath!, title, sticker ? total : null);
       setPosted(true);
     } catch (e) {
       alert((e as Error).message);
@@ -378,7 +379,15 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
       {invalid && <p className="small muted">{invalid}</p>}
       <Button title={isNew ? 'Log' : 'Save'} onClick={save} disabled={!!invalid} />
       {log.photoPath && habitsLink() && (
-        <Button title={posted ? 'Posted to RSHabits ✓' : 'Post to RSHabits'} variant="secondary" onClick={postToHabits} busy={posting} disabled={posted || !!invalid} />
+        <div className="card stack-sm">
+          <span className="label">RSHabits photo</span>
+          <Segmented
+            options={[{ value: 'on', label: 'Macros sticker' }, { value: 'off', label: 'Photo only' }] as const}
+            value={sticker ? 'on' : 'off'}
+            onChange={(v) => { setSticker(v === 'on'); setStickerOn(v === 'on'); }}
+          />
+          <Button title={posted ? 'Posted to RSHabits ✓' : 'Post to RSHabits'} variant="secondary" onClick={postToHabits} busy={posting} disabled={posted || !!invalid} />
+        </div>
       )}
       {isNew ? (
         !mealId && <Button title="Save as a meal" variant="secondary" onClick={saveAsMeal} disabled={!!invalid} />
