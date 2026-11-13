@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Page, Segmented } from '@/components/ui';
+import { EmptyState, ListRow, Page, Segmented } from '@/components/ui';
 import { listFoods, restock, type Food } from '@/db/diet';
 import { itemsBetween, listLogs } from '@/db/log';
 import { dayTargets } from '@/db/activity';
@@ -9,11 +9,13 @@ import { addDays } from '@/lib/history';
 import { useAccount } from '@/lib/account';
 import { tap } from '@/lib/haptics';
 import { animate } from '@/lib/motion';
+import { useNav } from '@/lib/nav';
 import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
-import { money, packsFor } from '@/lib/price';
+import { cheapestSources, money, packsFor } from '@/lib/price';
 import { cheapestBuy, usualBuy } from '@/lib/shop-plan';
 import { maxGramsFor, planShopping } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
+import { StockTotals } from '@/screens/home';
 
 const isButter = (f: Food) => /butter/i.test(f.name);
 const pos = (n: number) => Math.max(0, n);
@@ -134,8 +136,10 @@ const MACROS = [
   { key: 'fat', label: 'Fat' },
 ] as const;
 
-/** "What to buy" — the auto-made part of the shopping list. */
+/** "What to buy" — the auto-made part of the shopping list: the list first, its total and what you'll have at home
+ *  after, then the days and mode, why you're short, and the stock check and cheapest sources pages. */
 export function SmartList() {
+  const nav = useNav();
   const plan = useShopping();
   const [days, setDays] = useShopDays();
   const [mode, setMode] = useShopMode();
@@ -159,13 +163,16 @@ export function SmartList() {
       <Segmented options={MODE_OPTIONS} value={mode} onChange={(m) => animate('fade', () => setMode(m))} />
     </div>
   );
+  const pages = plan && (
+    <div className="list">
+      <ListRow title="Stock check" subtitle={stockSummary(plan)} icon={PAGE_ICONS.stock} onClick={() => nav.push(<StockCheckScreen />)} />
+      <ListRow title="Cheapest sources" subtitle="What 100 g of protein, carbs or fat costs" icon={PAGE_ICONS.cheap} onClick={() => nav.push(<CheapestScreen />)} />
+    </div>
+  );
   if (!plan) return tabs;
-  const stock = <StockCards plan={plan} />;
   if (!plan.needed) {
     return (
       <>
-        {tabs}
-        {stock}
         <div className="shop-ok">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12.5l4.5 4.5L19 7.5" />
@@ -175,6 +182,8 @@ export function SmartList() {
             <p className="small muted">What's at home covers the rest of today and {horizon(plan.days)}.</p>
           </div>
         </div>
+        {tabs}
+        {pages}
       </>
     );
   }
@@ -184,43 +193,22 @@ export function SmartList() {
     const f = plan.foods.find((x) => x.id === b.foodId)!;
     const packs = f.packGrams ? packsFor(b.grams, f.packGrams) : null;
     const price = packs !== null && f.packPrice !== null ? packs * f.packPrice : null;
-    return { b, f, packs, price };
+    return { b, f, packs, price, got: packs !== null ? packs * f.packGrams! : b.grams };
   });
   const total = rows.reduce((t, r) => t + (r.price ?? 0), 0);
   const unpriced = rows.filter((r) => r.price === null).length;
+  // At home once it's bought: what you have plus what you buy ("any amount" foods stay uncounted).
+  const after = plan.foods.map((f) => {
+    const r = rows.find((x) => x.f.id === f.id);
+    if (!r || (f.atHome && f.homeGrams === null)) return f;
+    return { ...f, atHome: true, homeGrams: (f.atHome ? f.homeGrams ?? 0 : 0) + r.got };
+  });
   return (
     <section className="smart-list">
-      {tabs}
-      {stock}
-      <div className="shop-need">
-        <div className="shop-need-head">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 4h2l2.5 11h11L21 7H6.2M9 20h.01M18 20h.01" />
-          </svg>
-          <div>
-            <strong>Time to go shopping</strong>
-            <p className="small muted">What's at home won't cover the rest of today and {horizon(plan.days)}.</p>
-          </div>
-        </div>
-        <div className="short-chips">
-          {MACROS.filter((m) => plan.short[m.key] >= 1).map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              className={`short-chip ${m.key}`}
-              aria-expanded={open === m.key}
-              onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
-              {m.label} <strong>−{Math.round(plan.short[m.key])} g</strong>
-            </button>
-          ))}
-        </div>
-      </div>
-      {open && <Sources macro={open} plan={plan} />}
-
       <h2 className="buy-title">What to buy</h2>
       {plan.note && <p className="small muted">{plan.note}</p>}
       <div className="list buy-list">
-        {rows.map(({ b, f, packs, price }) => {
+        {rows.map(({ b, f, packs, price, got }) => {
           const m = covered(b.grams, f);
           return (
             <label key={b.foodId} className="buy-row">
@@ -228,7 +216,7 @@ export function SmartList() {
                 type="checkbox"
                 onChange={(e) => {
                   tap();
-                  if (e.target.checked) void restock(f.id, packs !== null ? packs * f.packGrams! : b.grams);
+                  if (e.target.checked) void restock(f.id, got);
                 }}
                 aria-label={`Bought ${f.name}`}
               />
@@ -263,19 +251,99 @@ export function SmartList() {
           <strong className="buy-total-price">{money(total)}</strong>
         </div>
       )}
+      <StockTotals foods={after} title="After you buy this, you'll have" />
       <p className="small muted">Tick things off as you buy them; they go straight into At home.</p>
+      {tabs}
+      <div className="shop-need">
+        <div className="shop-need-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 4h2l2.5 11h11L21 7H6.2M9 20h.01M18 20h.01" />
+          </svg>
+          <div>
+            <strong>Why you need to shop</strong>
+            <p className="small muted">What's at home won't cover the rest of today and {horizon(plan.days)}.</p>
+          </div>
+        </div>
+        <div className="short-chips">
+          {MACROS.filter((m) => plan.short[m.key] >= 1).map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              className={`short-chip ${m.key}`}
+              aria-expanded={open === m.key}
+              onClick={() => setOpen((o) => (o === m.key ? null : m.key))}>
+              {m.label} <strong>−{Math.round(plan.short[m.key])} g</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+      {open && <Sources macro={open} plan={plan} />}
+      {pages}
     </section>
+  );
+}
+
+const PAGE_ICONS = {
+  stock: 'M4 11l8-6.5 8 6.5V20h-5v-6H9v6H4z',
+  cheap: 'M12 3v18M16.5 7.5C16 6 14.3 5 12 5c-2.8 0-4.5 1.3-4.5 3.3 0 4.7 9 2.6 9 7.4 0 2-1.8 3.3-4.5 3.3-2.4 0-4.2-1-4.8-2.6',
+};
+
+function stockGroups(plan: Plan) {
+  const buying = new Set(plan.buy.map((b) => b.foodId));
+  const out = plan.foods.filter((f) => !f.atHome || f.homeGrams === 0);
+  const have = plan.foods.filter((f) => f.atHome && f.homeGrams !== 0);
+  const isLow = (f: Food) => buying.has(f.id) || (f.homeGrams !== null && f.homeGrams < (f.defaultGrams ?? f.pieceGrams ?? 100));
+  return { out, low: have.filter(isLow), enough: have.filter((f) => !isLow(f)) };
+}
+
+const stockSummary = (plan: Plan) => {
+  const { out, low, enough } = stockGroups(plan);
+  return [out.length && `${out.length} out`, low.length && `${low.length} low`, enough.length && `${enough.length} enough`].filter(Boolean).join(' · ') || 'Nothing in My Diet yet';
+};
+
+/** Stock check: the foods in My Diet you're out of, low on, or have enough of. */
+function StockCheckScreen() {
+  const plan = useShopping();
+  return <Page title="Stock check">{plan && <StockCards plan={plan} />}</Page>;
+}
+
+/** The cheapest way to get a macro from your priced foods: what 100 g of it costs from each, cheapest first. */
+function CheapestScreen() {
+  const foods = useLive(listFoods, ['foods']);
+  const [k, setK] = useState<(typeof MACROS)[number]['key']>('protein');
+  if (!foods) return null;
+  const rows = cheapestSources(foods.filter((f) => !f.recipeOnly), k);
+  const unpriced = foods.filter((f) => !f.packGrams || f.packPrice === null).length;
+  return (
+    <Page title="Cheapest sources">
+      <Segmented options={MACROS.map((m) => ({ value: m.key, label: m.label }))} value={k} onChange={(v) => animate('fade', () => setK(v))} />
+      <p className="small muted">What 100 g of {k} costs from each food, from its pack price. Foods with under 2 g of {k} per 100 g are left out.</p>
+      {rows.length === 0 ? (
+        <EmptyState text="Add a shopping size and price to your foods in My Diet to compare them." />
+      ) : (
+        <div className={`list cheap-list ${k}`}>
+          {rows.map(({ food: f, per100 }, i) => (
+            <div key={f.id} className="list-row">
+              <span className="cheap-rank" aria-hidden="true">{i + 1}</span>
+              <span className="grow">
+                <span className="list-title">{f.name}</span>
+                <span className="small muted">
+                  {Math.round(f[k])} g {k} per 100 g · {money((f.packPrice! / f.packGrams!) * 100)} per 100 g
+                </span>
+              </span>
+              <strong>{money(per100)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+      {unpriced > 0 && <p className="small muted">{unpriced === 1 ? '1 food has' : `${unpriced} foods have`} no price yet, so {unpriced === 1 ? "it isn't" : "they aren't"} compared.</p>}
+    </Page>
   );
 }
 
 /** What's at home against the plan: none of it, low (the list buys more, or less than one usual portion left), or enough. */
 function StockCards({ plan }: { plan: Plan }) {
-  const buying = new Set(plan.buy.map((b) => b.foodId));
-  const out = plan.foods.filter((f) => !f.atHome || f.homeGrams === 0);
-  const have = plan.foods.filter((f) => f.atHome && f.homeGrams !== 0);
-  const isLow = (f: Food) => buying.has(f.id) || (f.homeGrams !== null && f.homeGrams < (f.defaultGrams ?? f.pieceGrams ?? 100));
-  const low = have.filter(isLow);
-  const enough = have.filter((f) => !isLow(f));
+  const { out, low, enough } = stockGroups(plan);
   const when = `the rest of today and ${horizon(plan.days)}`;
   return (
     <>

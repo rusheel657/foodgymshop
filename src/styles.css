@@ -15,6 +15,10 @@
   --radius: 16px;
   --seg-track: #303136;
   --seg-on: #4d4f56;
+  --nav: #17181a;
+  --nav-on: color-mix(in srgb, var(--text) 14%, transparent);
+  --hairline: transparent;
+  --icon-bg: #2c2d31;
   color-scheme: dark;
   font-family: system-ui, -apple-system, Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -33,6 +37,10 @@
   --shadow: 0 2px 14px rgb(0 0 0 / 0.06);
   --seg-track: #e5e5ea;
   --seg-on: #ffffff;
+  --nav: #ffffff;
+  --nav-on: #e8e8ed;
+  --hairline: rgb(0 0 0 / 0.04);
+  --icon-bg: #f0f0f3;
   color-scheme: light;
 }
 
@@ -54,7 +62,7 @@ button, input { font: inherit; color: inherit; }
   gap: 24px;
   max-width: 640px;
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 112px);
+  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 172px);
 }
 .sign-in { min-height: 100dvh; padding-bottom: calc(env(safe-area-inset-bottom) + 32px); }
 .hero { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
@@ -86,33 +94,40 @@ input[type='range'] { width: 100%; accent-color: var(--brand); }
 .button.primary { background: var(--brand); color: var(--on-brand); border: 0; }
 .button:disabled { opacity: 0.4; }
 
+/* Android's navigation bar (Material 3): full width, labels under the icons, a pill behind the current one. */
 .tabbar {
   position: fixed;
   z-index: 2;
-  inset: auto 16px calc(env(safe-area-inset-bottom) + 12px);
+  inset: auto 0 0;
   display: flex;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 34px;
-  background: color-mix(in srgb, var(--element) 82%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  padding: 12px 0 calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--nav);
+  box-shadow: 0 -1px 0 var(--border);
 }
-.tabbar button { flex: 1; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 28px; background: none; font-size: 12px; color: var(--muted); }
-.tabbar button[aria-current='true'] { color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); font-weight: 600; }
-.tabbar .tab-add { flex: none; width: 64px; margin: 0 4px; border-radius: 27px; background: var(--brand); color: var(--on-brand); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
-.tabbar .tab-add svg { width: 28px; height: 28px; stroke-width: 2.4; }
-.tabbar .tab-add:active { transform: scale(0.92); }
+.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--muted); }
+.tab-icon { display: grid; place-items: center; width: 64px; height: 32px; border-radius: 16px; transition: background-color 220ms var(--ease); }
+.tabbar button[aria-current='true'] { color: var(--text); font-weight: 700; }
+.tabbar button[aria-current='true'] .tab-icon { background: var(--nav-on); }
 .tabbar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* The add button: Android's floating action button, bottom right above the bar. */
+.tab-add { position: fixed; z-index: 2; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 96px); width: 56px; height: 56px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 16px; background: var(--brand); color: var(--on-brand); box-shadow: 0 6px 16px rgb(0 0 0 / 0.28); transition: transform 180ms var(--ease); view-transition-name: fab; }
+.tab-add svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.tab-add:active { transform: scale(0.92); }
+
+/* RSHabits' top bar: the app's name, staying put while the page scrolls under it. */
+.brand { position: sticky; top: 0; z-index: 1; margin: calc(-1 * env(safe-area-inset-top) - 24px) -16px -12px; padding: calc(env(safe-area-inset-top) + 14px) 16px 10px; background: var(--bg); font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.title-button { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.title-button svg { width: 24px; height: 24px; margin-top: 4px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
 .update-bar { position: fixed; z-index: 1; inset: 0 0 auto; padding: calc(env(safe-area-inset-top) + 8px) 16px 8px; border: 0; background: var(--accent); color: #000; font-size: 14px; }
 
 /* Pages, lists, My Diet, Shop */
 .page { padding-bottom: calc(env(safe-area-inset-bottom) + 32px); }
-.page-head { display: flex; align-items: center; gap: 4px; margin-left: -8px; }
+.page-head { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
 .page-head h1 { margin: 0; }
 .back, .icon-button { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 22px; font-size: 22px; }
+/* RSHabits' back button: a round card. */
+.back { border-radius: 50%; background: var(--element); box-shadow: var(--shadow), 0 0 0 1px var(--hairline); }
 .back svg, .list-row svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .stack-sm { display: flex; flex-direction: column; gap: 12px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -320,7 +335,7 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .streak .flame { width: 20px; height: 20px; color: #f08a3c; }
 
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin: 0 -8px; touch-action: pan-y; }
-.week-day { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; border: 0; border-radius: 18px; background: none; color: var(--muted); }
+.week-day { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; border: 0; border-radius: 22px; background: none; color: var(--muted); font-weight: 600; }
 .week-day[aria-pressed='true'] { background: var(--element); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
 .week-day:disabled { opacity: 0.35; }
 .week-num { font-size: 15px; font-weight: 600; color: var(--text); }
@@ -351,7 +366,9 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .kcal-ring.over .ring-fill { stroke: var(--danger); }
 
 .macro-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.macro-card { display: flex; flex-direction: column; gap: 2px; padding: 14px 12px 16px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); }
+.macro-card { display: flex; flex-direction: column; gap: 2px; padding: 14px 12px 16px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); }
+.macro-card:active { transform: scale(0.96); }
+.macro-src strong { color: var(--tone); font-variant-numeric: tabular-nums; }
 .macro-card strong { font-size: 20px; font-variant-numeric: tabular-nums; }
 .macro-card p { white-space: nowrap; }
 .macro-card .small { font-size: 13px; }
@@ -367,7 +384,14 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .section-title { font-size: 22px; }
 .entry { display: flex; gap: 12px; width: 100%; padding: 12px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 340ms var(--ease) both; }
 .entry:active { transform: scale(0.98); }
-.entry-photo { flex: none; width: 76px; height: 76px; border-radius: 14px; object-fit: cover; }
+.entry-photo-wrap { position: relative; flex: none; }
+.entry-photo { display: block; width: 64px; height: 64px; border-radius: 14px; object-fit: cover; }
+.entry-photo.empty { display: grid; place-items: center; font-size: 24px; font-weight: 800; color: var(--tone, var(--muted)); background: color-mix(in srgb, var(--tone, var(--text)) 16%, var(--element)); }
+.entry-photo.empty.protein { --tone: var(--protein); }
+.entry-photo.empty.carbs { --tone: var(--carbs); }
+.entry-photo.empty.fat { --tone: var(--fat); }
+.entry-photo-wrap .food-card-check { top: -6px; left: -6px; }
+.entry.picked .entry-photo { outline: 2px solid var(--brand); outline-offset: 2px; }
 .entry-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 2px 4px; }
 .entry-top { display: flex; justify-content: space-between; gap: 8px; }
 .entry-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -546,7 +570,10 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .gym-week-stats > span { display: flex; flex-direction: column; }
 .gym-week-stats strong { font-size: 22px; }
 .sheet .list { background: var(--bg); box-shadow: none; }
-.sheet-row-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--element); }
+.sheet-row-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--icon-bg); }
+.sheet .sheet-row-icon { background: var(--element); }
+.list-row.has-icon { justify-content: flex-start; }
+.list-row.has-icon > span:not(.sheet-row-icon) { flex: 1; }
 .sheet-row-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .list-row .sheet-row-icon svg { color: var(--text); }
 .sheet .list-row .small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -588,8 +615,12 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .tile-count small { font-size: 15px; font-weight: 600; color: var(--muted); }
 
 /* Today's food, grouped by meal */
-.meal-group { display: flex; flex-direction: column; gap: 10px; }
-.meal-group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 4px 0; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+/* RSHabits' section cards: one card per meal, its name as a grey label inside, rows split by hairlines. */
+.meal-group, .entry-card { display: flex; flex-direction: column; padding: 6px 16px; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); animation: rise 340ms var(--ease) both; }
+.meal-group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+:is(.meal-group, .entry-card) .entry { padding: 12px 0; border-radius: 0; background: none; box-shadow: none; animation: none; }
+:is(.meal-group, .entry-card) .entry + .entry { border-top: 1px solid var(--border); }
+:is(.meal-group, .entry-card) .entry:active { transform: none; opacity: 0.6; }
 
 .app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
 .app-footer img { border-radius: 12px; margin-bottom: 4px; }
@@ -620,3 +651,14 @@ html[data-nav='fade']::view-transition-new(root) { animation: vt-fade-in 220ms v
 .ai-meter { height: 6px; }
 .ai-meter > div { background: var(--fat); }
 .ai-meter.limited > div { background: var(--danger); }
+
+/* Profile card (RSHabits' "You" card) */
+.profile-card { display: flex; align-items: center; gap: 16px; width: 100%; padding: 16px; border: 0; border-radius: 20px; background: var(--element); box-shadow: var(--shadow); text-align: left; transition: transform 180ms var(--ease); animation: rise 340ms var(--ease) both; }
+.profile-card:active { transform: scale(0.98); }
+.profile-card strong { font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { flex: none; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: #2f78ad; color: #fff; font-size: 26px; font-weight: 600; box-shadow: 0 0 0 3px var(--element), 0 0 0 5px var(--border); }
+.profile-card .chev { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cheap-list .list-row { justify-content: flex-start; }
+.cheap-list strong { flex: none; color: var(--tone); font-variant-numeric: tabular-nums; }
+.cheap-rank { flex: none; display: grid !important; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--icon-bg); font-size: 13px; font-weight: 700; }
+.entry-top > .small { flex: none; white-space: nowrap; }

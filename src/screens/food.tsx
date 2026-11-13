@@ -1,8 +1,9 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
+import { EntryRow, Glyph, ICONS, mainMacro } from '@/components/food-grid';
 import { EmptyState, Sheet, Tile } from '@/components/ui';
 import type { DayTargets } from '@/db/activity';
-import { listFoods, listMeals, type Food } from '@/db/diet';
+import { listFoods, listMeals, type Food, type Meal } from '@/db/diet';
 import { dailyTotals, listLogs, logTimeFor, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
@@ -10,8 +11,8 @@ import { useTargets } from '@/lib/health';
 import { addDays, dayStatus, streak, weekOf } from '@/lib/history';
 import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
-import { macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
-import { addPhoto, canUseCamera, photoSrc } from '@/lib/photos';
+import { amountLabel, macrosFor, sumMacros, type Macros } from '@/lib/nutrition';
+import { addPhoto, canUseCamera } from '@/lib/photos';
 import { costOf, money } from '@/lib/price';
 import { MEALS } from '@/lib/suggest';
 import { useLive } from '@/lib/use-live';
@@ -24,22 +25,6 @@ import { SpendingScreen } from '@/screens/spending';
 import { WeightScreen } from '@/screens/weight';
 
 const LOG_TABLES = ['food_logs', 'food_log_items'];
-
-// Small filled glyphs (24×24) for the cards.
-const ICONS = {
-  flame: 'M12 2.5c.8 3.2 5 5.6 5 10.5a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.4-4.8.1 1.8 1 3 2.3 3.3-.6-3.4-.3-6.3.3-9z',
-  protein: 'M15.5 3a5.5 5.5 0 0 1 .9 10.9l-2.6.4-4.2 4.2a2.3 2.3 0 1 1-3.4 2.6 2.3 2.3 0 1 1 2.6-3.4l4.2-4.2.4-2.6A5.5 5.5 0 0 1 15.5 3z',
-  carbs: 'M11 21V11.5C8.6 11 7 9 7 6.5c2.4.3 4 2 4 4.6V9.6C8.8 9 7.4 7.1 7.6 4.8 9.8 5.2 11 7 11 9.3V3h2v6.3c0-2.3 1.2-4.1 3.4-4.5.2 2.3-1.2 4.2-3.4 4.8v1.5c0-2.6 1.6-4.3 4-4.6 0 2.5-1.6 4.5-4 5V21z',
-  fat: 'M12 2.8s6.5 7.2 6.5 11.7a6.5 6.5 0 0 1-13 0C5.5 10 12 2.8 12 2.8z',
-};
-
-function Glyph({ d, className }: { d: string; className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className ?? 'glyph'} aria-hidden="true">
-      <path d={d} />
-    </svg>
-  );
-}
 
 /** A progress ring; children are centred inside it. */
 function Ring({ value, max, size, stroke, className, dashed, children }: {
@@ -85,6 +70,7 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
   const foods = useLive(() => listFoods(true), ['foods']); // for prices; old entries may use foods switched off since
   const meals = useLive(listMeals, ['meals', 'meal_items']);
   const swipe = useRef<number | null>(null);
+  const [sources, setSources] = useState<MacroKey | null>(null);
   const shopping = useShopping();
   const targets = useTargets(week);
   if (!profile || !logs || !days || !weekDays || !targets || !foods || !meals) return null;
@@ -108,6 +94,7 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
       if (!/cancel/i.test((e as Error).message)) alert((e as Error).message);
     }
   }
+  const openHistory = () => nav.push(<HistoryScreen onPickDay={(d) => { setDate(d); nav.pop(); window.scrollTo(0, 0); }} />);
   const open = (page: ReactNode) => {
     setSheet(false);
     nav.push(page);
@@ -115,10 +102,16 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
 
   return (
     <main className="screen food">
+      <p className="brand">RSFitness</p>
       <header className="food-head">
         <div>
-          <h1>{date === today ? 'Today' : new Date(`${date}T12:00`).toLocaleDateString([], { weekday: 'long' })}</h1>
-          <p className="muted">{new Date(`${date}T12:00`).toLocaleDateString([], { day: 'numeric', month: 'long' })}</p>
+          <button type="button" className="title-button" onClick={openHistory}>
+            <h1>{date === today ? 'Today' : new Date(`${date}T12:00`).toLocaleDateString([], { weekday: 'long' })}</h1>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+          <p className="muted">{new Date(`${date}T12:00`).toLocaleDateString([], { day: 'numeric', month: 'long' })} · tap for your history</p>
         </div>
         <span className="streak" aria-label={`${streakDays} day logging streak`}>
           <Glyph d={ICONS.flame} className="glyph flame" />
@@ -148,8 +141,8 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
               disabled={d > today}
               aria-label={`${d}: ${kcal ? `${Math.round(kcal)} kcal` : 'nothing logged'}`}
               onClick={() => go(d)}>
-              <span className="small">{new Date(`${d}T12:00`).toLocaleDateString([], { weekday: 'short' })}</span>
-              <Ring value={kcal} max={dayKcal} size={38} stroke={3} dashed={!kcal}>
+              <span className="small">{new Date(`${d}T12:00`).toLocaleDateString([], { weekday: 'narrow' })}</span>
+              <Ring value={kcal} max={dayKcal} size={40} stroke={3.5}>
                 <span className="week-num">{Number(d.slice(8))}</span>
               </Ring>
             </button>
@@ -184,10 +177,11 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
       )}
 
       <div className="macro-cards">
-        <MacroCard label="Protein" value={eaten.protein} max={t.protein} icon={ICONS.protein} kind="protein" />
-        <MacroCard label="Carbs" value={eaten.carbs} max={t.carbs} icon={ICONS.carbs} kind="carbs" />
-        <MacroCard label="Fat" value={eaten.fat} max={t.fat} icon={ICONS.fat} kind="fat" />
+        <MacroCard label="Protein" value={eaten.protein} max={t.protein} icon={ICONS.protein} kind="protein" onClick={() => setSources('protein')} />
+        <MacroCard label="Carbs" value={eaten.carbs} max={t.carbs} icon={ICONS.carbs} kind="carbs" onClick={() => setSources('carbs')} />
+        <MacroCard label="Fat" value={eaten.fat} max={t.fat} icon={ICONS.fat} kind="fat" onClick={() => setSources('fat')} />
       </div>
+      {sources && <MacroSources kind={sources} logs={logs} foods={foods} today={date === today} onClose={() => setSources(null)} />}
 
       {date === today && shopping?.needed && (
         <button type="button" className="shop-nudge" onClick={() => nav.push(<ShoppingScreen />)}>
@@ -235,10 +229,10 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
             <div key={label} className="meal-group">
               <p className="meal-group-head">
                 <span>{label}</span>
-                <span className="muted">{Math.round(kcal)} kcal</span>
+                <span>{Math.round(kcal)} kcal</span>
               </p>
               {group.map((l) => (
-                <EntryCard key={l.id} log={l} foods={foods} mealName={meals.find((m) => m.id === l.mealId)?.name} onClick={() => nav.push(<LogFormScreen log={l} />)} />
+                <EntryCard key={l.id} log={l} foods={foods} meal={meals.find((m) => m.id === l.mealId)} onClick={() => nav.push(<LogFormScreen log={l} />)} />
               ))}
             </div>
           );
@@ -249,12 +243,7 @@ export function FoodScreen({ adding: sheet, setAdding: setSheet }: { adding: boo
         <Tile label="My Diet" icon={TILE.diet} tone="green" count={counts?.foods} onClick={() => nav.push(<MyDietScreen />)} />
         <Tile label="At home" icon={TILE.home} tone="orange" count={counts?.home} onClick={() => nav.push(<AtHomeScreen />)} />
         <Tile label="Weight" icon={TILE.weight} tone="blue" count={<>{profile.weightKg}<small> kg</small></>} onClick={() => nav.push(<WeightScreen />)} />
-        <Tile
-          label="History"
-          icon={TILE.history}
-          tone="red"
-          onClick={() => nav.push(<HistoryScreen onPickDay={(d) => { setDate(d); nav.pop(); window.scrollTo(0, 0); }} />)}
-        />
+        <Tile label="History" icon={TILE.history} tone="red" onClick={openHistory} />
       </div>
 
       {sheet && (
@@ -280,9 +269,9 @@ const TILE = {
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00`) - Date.parse(`${a}T12:00`)) / 86_400_000);
 
-function MacroCard({ label, value, max, icon, kind }: { label: string; value: number; max: number; icon: string; kind: string }) {
+function MacroCard({ label, value, max, icon, kind, onClick }: { label: string; value: number; max: number; icon: string; kind: string; onClick: () => void }) {
   return (
-    <div className={`macro-card ${kind}`}>
+    <button type="button" className={`macro-card ${kind}`} onClick={onClick} aria-label={`${label}: ${Math.round(value)} of ${max} g. See where it came from`}>
       <p>
         <strong>{Math.round(value)}</strong>
         <span className="muted small">/{max}g</span>
@@ -291,36 +280,67 @@ function MacroCard({ label, value, max, icon, kind }: { label: string; value: nu
       <Ring value={value} max={max} size={64} stroke={7}>
         <Glyph d={icon} />
       </Ring>
-    </div>
+    </button>
   );
 }
 
-function EntryCard({ log, foods, mealName, onClick }: { log: FoodLog; foods: Food[]; mealName?: string; onClick: () => void }) {
+type MacroKey = 'protein' | 'carbs' | 'fat';
+
+/** Where a macro came from that day: each food's grams of it, most first. */
+function MacroSources({ kind, logs, foods, today, onClose }: { kind: MacroKey; logs: FoodLog[]; foods: Food[]; today: boolean; onClose: () => void }) {
+  const byFood = new Map<string, { key: string; name: string; grams: number; g: number; piece?: number | null }>();
+  for (const i of logs.flatMap((l) => l.items)) {
+    const key = i.foodId ?? i.name;
+    const row = byFood.get(key) ?? { key, name: i.name, grams: 0, g: 0, piece: foods.find((f) => f.id === i.foodId)?.pieceGrams };
+    row.grams += i.grams;
+    row.g += macrosFor(i.per100, i.grams)[kind];
+    byFood.set(key, row);
+  }
+  const rows = [...byFood.values()].filter((r) => r.g >= 0.5).sort((a, b) => b.g - a.g);
+  const total = rows.reduce((s, r) => s + r.g, 0);
+  const label = kind[0].toUpperCase() + kind.slice(1);
+  return (
+    <Sheet title={`${label} ${today ? 'today' : 'that day'}`} onClose={onClose}>
+      <p className="muted">{rows.length ? `${Math.round(total)} g from ${rows.length === 1 ? '1 food' : `${rows.length} foods`}, most first.` : `Nothing eaten had any ${kind}.`}</p>
+      <div className={`list macro-src ${kind}`}>
+        {rows.map((r) => (
+          <div key={r.key} className="list-row">
+            <span>
+              <span className="list-title">{r.name}</span>
+              <span className="small muted">{amountLabel(r.grams, r.piece)} · {Math.round((r.g / total) * 100)}%</span>
+            </span>
+            <strong>{Math.round(r.g)} g</strong>
+          </div>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+function EntryCard({ log, foods, meal, onClick }: { log: FoodLog; foods: Food[]; meal?: Meal; onClick: () => void }) {
   const m = sumMacros(log.items.map((i) => macrosFor(i.per100, i.grams)));
   const { cost } = costOf(log.items, foods);
   const time = new Date(log.loggedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const r = Math.round;
+  const title = log.name || meal?.name || log.items.map((i) => i.name).join(', ');
+  // Its own photo, else the saved meal's, else the first food's photo from My Diet.
+  const own = log.items.flatMap((i) => foods.find((f) => f.id === i.foodId) ?? []);
+  const photo = log.photoPath ?? meal?.photos[0] ?? own.find((f) => f.photo)?.photo ?? null;
   return (
-    <button type="button" className="entry" onClick={onClick}>
-      {log.photoPath && <img className="entry-photo" src={photoSrc(log.photoPath)} alt="" />}
-      <span className="entry-body">
-        <span className="entry-top">
-          <span className="entry-name">{log.name || mealName || log.items.map((i) => i.name).join(', ')}</span>
-          <span className="small muted">{time}</span>
-        </span>
-        <span className="entry-kcal">
-          <Glyph d={ICONS.flame} />
-          {r(m.kcal)} calories
+    <EntryRow
+      photo={photo}
+      letter={title}
+      tone={own[0] ? mainMacro(own[0]) : 'carbs'}
+      title={title}
+      side={time}
+      m={m}
+      extra={
+        <>
           {cost > 0 && <span className="entry-cost">{money(cost)}</span>}
           {log.items.some((i) => !i.verified) && <span className="tag">UNVERIFIED</span>}
-        </span>
-        <span className="entry-macros small">
-          <span className="protein"><Glyph d={ICONS.protein} />{r(m.protein)}g</span>
-          <span className="carbs"><Glyph d={ICONS.carbs} />{r(m.carbs)}g</span>
-          <span className="fat"><Glyph d={ICONS.fat} />{r(m.fat)}g</span>
-        </span>
-      </span>
-    </button>
+        </>
+      }
+      onClick={onClick}
+    />
   );
 }
 

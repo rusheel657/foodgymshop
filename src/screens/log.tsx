@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { LinkIcon, FoodGrid } from '@/components/food-grid';
+import { EntryRow, FoodGrid, LinkIcon, mainMacro } from '@/components/food-grid';
 import { Button, EmptyState, Field, ListRow, NumberInput, num, Page, SectionHead, Segmented, TextInput } from '@/components/ui';
 import { listFoods, listMeals, mealMacros, saveMeal, type Food, type Meal } from '@/db/diet';
 import { deleteLog, logTimeFor, recentCorrections, saveCorrections, saveLog, usualPortions, type FoodLog } from '@/db/log';
 import { localDate } from '@/db/profile';
 import { useAccount } from '@/lib/account';
 import { lookupBarcode, scanBarcode } from '@/lib/barcode';
+import { animate } from '@/lib/motion';
 import { useNav } from '@/lib/nav';
 import {
-  correctionNote, diffCorrections, formatMacros, macrosFor, showAmount, sumMacros, toGrams, toLogItems, unitOf, type LogItem,
+  amountLabel, correctionNote, diffCorrections, formatMacros, macrosFor, showAmount, sumMacros, toGrams, toLogItems, unitOf, type LogItem,
 } from '@/lib/nutrition';
 import { canUseCamera, deletePhoto, photoBase64, photoSrc } from '@/lib/photos';
 import { money, priceFor } from '@/lib/price';
@@ -138,6 +139,7 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
   const foods = useLive(() => listFoods(), ['foods']);
   const meals = useLive(listMeals, ['meals', 'meal_items']);
   const [picked, setPicked] = useState<string[]>([]);
+  const [view, setView] = useState(() => (localStorage.getItem('quick-view') === 'list' ? 'list' : 'grid'));
   if (!foods || !meals) return null;
   const links = pairLinks(foods);
   const chosen = picked.flatMap((id) => foods.find((f) => f.id === id) ?? []);
@@ -155,7 +157,14 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
       {foods.length === 0 ? (
         <EmptyState text="Add foods in My Diet first." />
       ) : (
-        <p className="small muted">Tap what you ate. You set the amounts next.</p>
+        <>
+          <Segmented
+            options={[{ value: 'grid', label: 'Cards' }, { value: 'list', label: 'List' }] as const}
+            value={view}
+            onChange={(v) => animate('fade', () => { localStorage.setItem('quick-view', v); setView(v); })}
+          />
+          <p className="small muted">Tap what you ate. You set the amounts next.</p>
+        </>
       )}
       {canUseCamera && (
         <Button
@@ -178,19 +187,50 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
           </button>
         </div>
       ))}
-      <FoodGrid foods={foods} picked={new Map(picked.map((id) => [id, 1]))} wanted={wanted} onPick={toggle} />
+      {view === 'grid' ? (
+        <FoodGrid foods={foods} picked={new Map(picked.map((id) => [id, 1]))} wanted={wanted} onPick={toggle} />
+      ) : (
+        foods.length > 0 && (
+          <div className="entry-card">
+            {foods.map((f) => {
+              const g = f.defaultGrams ?? f.pieceGrams ?? 100;
+              return (
+                <EntryRow
+                  key={f.id}
+                  photo={f.photo}
+                  letter={f.name}
+                  tone={mainMacro(f)}
+                  title={f.name}
+                  side={amountLabel(g, f.pieceGrams)}
+                  m={macrosFor(f, g)}
+                  extra={wanted.has(f.id) ? <span className="tag">GOES WITH</span> : undefined}
+                  picked={picked.includes(f.id) ? 1 : 0}
+                  onClick={() => toggle(f)}
+                />
+              );
+            })}
+          </div>
+        )
+      )}
       {meals.length > 0 && (
         <section className="stack-sm">
           <h2 className="section-title">Saved meals</h2>
-          <div className="list">
-            {meals.map((m) => (
-              <ListRow
-                key={m.id}
-                title={m.name}
-                subtitle={formatMacros(mealMacros(m, foods))}
-                onClick={() => next([...pickedItems(), ...mealItems(m, foods)], m.id)}
-              />
-            ))}
+          <div className="entry-card">
+            {meals.map((m) => {
+              const first = foods.find((f) => f.id === m.items[0]?.foodId);
+              return (
+                <EntryRow
+                  key={m.id}
+                  photo={m.photos[0]}
+                  letter={m.name}
+                  tone={first ? mainMacro(first) : 'carbs'}
+                  title={m.name}
+                  side={m.items.length === 1 ? '1 food' : `${m.items.length} foods`}
+                  m={mealMacros(m, foods)}
+                  onClick={() => next([...pickedItems(), ...mealItems(m, foods)], m.id)}
+                />
+              );
+            })}
           </div>
         </section>
       )}

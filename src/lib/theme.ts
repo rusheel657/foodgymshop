@@ -1,17 +1,24 @@
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 
-export type ThemePref = 'dark' | 'light';
+/** 'auto' follows the phone's light/dark setting, as RSHabits does. */
+export type ThemePref = 'dark' | 'light' | 'auto';
 
-// Per-device setting, so localStorage is enough.
+const dark = window.matchMedia('(prefers-color-scheme: dark)');
+
+// Per-device setting, so localStorage is enough. Before Auto existed the default was dark, so saved choices stay.
 export function getThemePref(): ThemePref {
-  return localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+  const t = localStorage.getItem('theme');
+  return t === 'light' || t === 'dark' ? t : 'auto';
 }
 
 export function applyTheme(pref = getThemePref()) {
   localStorage.setItem('theme', pref);
   localStorage.removeItem('skin'); // colour themes are gone
-  document.documentElement.dataset.theme = pref;
+  const shown = pref === 'auto' ? (dark.matches ? 'dark' : 'light') : pref;
+  document.documentElement.dataset.theme = shown;
   if (Capacitor.isNativePlatform()) {
-    SystemBars.setStyle({ style: pref === 'light' ? SystemBarsStyle.Light : SystemBarsStyle.Dark });
+    SystemBars.setStyle({ style: shown === 'light' ? SystemBarsStyle.Light : SystemBarsStyle.Dark });
   }
 }
+
+dark.addEventListener('change', () => getThemePref() === 'auto' && applyTheme('auto'));

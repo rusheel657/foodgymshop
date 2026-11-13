@@ -45,3 +45,13 @@ export function spendSummary(items: { day: string; foodId: string | null; name: 
 
 /** Whole packs to buy to get `grams` (a hair over a pack still counts as one, e.g. 502 g of a 500 g pack). */
 export const packsFor = (grams: number, packGrams: number) => Math.max(1, Math.ceil(grams / packGrams - 0.02));
+
+type MacroFood = Priced & { protein: number; carbs: number; fat: number };
+
+/** What 100 g of a macro costs from each priced food, cheapest first: pack price per gram × the grams of food that hold
+ *  100 g of it. Foods with under 2 g per 100 g are left out (a "source" of next to nothing costs a fortune). */
+export function cheapestSources<T extends MacroFood>(foods: T[], k: 'protein' | 'carbs' | 'fat') {
+  return foods
+    .flatMap((food) => (food.packGrams && food.packPrice !== null && food[k] >= 2 ? [{ food, per100: ((food.packPrice / food.packGrams) * 10000) / food[k] }] : []))
+    .sort((a, b) => a.per100 - b.per100);
+}

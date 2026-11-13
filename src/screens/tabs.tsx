@@ -57,6 +57,10 @@ export function ShopScreen() {
 
 const GOAL = { lose: 'Lose', gain: 'Gain', maintain: 'Keep' } as const;
 
+const ICON = {
+  weight: 'M6 4h12l2 16H4zM9.5 10a2.5 2.5 0 0 1 5 0',
+};
+
 /** Settings, grouped: you, appearance, connections, account. */
 export function ProfileScreen() {
   const { email, profile } = useAccount();
@@ -64,22 +68,28 @@ export function ProfileScreen() {
   const [theme, setTheme] = useState(getThemePref);
   return (
     <Screen title="Profile">
-      <section className="settings-group">
-        <h2 className="section-title">You</h2>
-        <div className="list">
-          <ListRow
-            title="Body & goal"
-            subtitle={profile ? `${GOAL[profile.goal]} weight${profile.goal === 'maintain' ? '' : ` · ${profile.rateKgWeek} kg a week`}` : 'Set up'}
-            onClick={() => nav.push(<BodyGoalScreen />)}
-          />
-          <ListRow title="Weight" subtitle={profile ? `${profile.weightKg} kg · log and track` : 'Log and track'} onClick={() => nav.push(<WeightScreen />)} />
-        </div>
-      </section>
+      {/* RSHabits' profile card: you, with your goal; tap for Body & goal. */}
+      <button type="button" className="profile-card" onClick={() => nav.push(<BodyGoalScreen />)}>
+        <span className="avatar" aria-hidden="true">{(email ?? '?').slice(0, 1).toUpperCase()}</span>
+        <span className="grow">
+          <strong>{email?.split('@')[0] ?? 'You'}</strong>
+          <span className="small muted">
+            {profile ? `${GOAL[profile.goal]} weight${profile.goal === 'maintain' ? '' : ` · ${profile.rateKgWeek} kg a week`}` : 'Set up your body & goal'}
+          </span>
+        </span>
+        <svg className="chev" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+
+      <div className="list">
+        <ListRow title="Weight" subtitle={profile ? `${profile.weightKg} kg` : undefined} icon={ICON.weight} onClick={() => nav.push(<WeightScreen />)} />
+      </div>
 
       <section className="settings-group">
         <h2 className="section-title">Appearance</h2>
         <Segmented
-          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] as const}
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'auto', label: 'Auto' }] as const}
           value={theme}
           onChange={(t) => animate('fade', () => { setTheme(t); applyTheme(t); })}
         />

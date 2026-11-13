@@ -6,6 +6,7 @@ import { useNav } from '@/lib/nav';
 export function Screen({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
     <main className="screen">
+      <p className="brand">RSFitness</p>
       <h1>{title}</h1>
       {children}
     </main>
@@ -125,6 +126,7 @@ export function Page({ title, children }: { title: string; children: ReactNode }
   const nav = useNav();
   return (
     <main className="screen page">
+      <p className="brand">RSFitness</p>
       <header className="page-head">
         <button type="button" className="back" aria-label="Back" onClick={() => nav.pop()}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -151,9 +153,17 @@ export function SectionHead({ title, action, onAction }: { title: string; action
   );
 }
 
-export function ListRow({ title, subtitle, onClick }: { title: string; subtitle?: string; onClick: () => void }) {
+/** `icon`: an SVG path, shown in a small rounded square on the left (RSHabits' settings rows). */
+export function ListRow({ title, subtitle, icon, onClick }: { title: string; subtitle?: string; icon?: string; onClick: () => void }) {
   return (
-    <button type="button" className="list-row" onClick={onClick}>
+    <button type="button" className={icon ? 'list-row has-icon' : 'list-row'} onClick={onClick}>
+      {icon && (
+        <span className="sheet-row-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d={icon} />
+          </svg>
+        </span>
+      )}
       <span>
         <span className="list-title">{title}</span>
         {subtitle && <span className="small muted">{subtitle}</span>}

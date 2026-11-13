@@ -130,7 +130,7 @@ const STOCK_MACROS = [
 
 /** What's in the kitchen in total and how long it lasts at your daily targets; tap a macro for its sources.
  *  Foods set to "any" have no amount to add up. */
-function StockTotals({ foods }: { foods: Food[] }) {
+export function StockTotals({ foods, title }: { foods: Food[]; title?: string }) {
   const today = localDate();
   const target = useTargets([today])?.get(today);
   const [open, setOpen] = useState<(typeof STOCK_MACROS)[number]['key'] | null>(null);
@@ -141,6 +141,7 @@ function StockTotals({ foods }: { foods: Food[] }) {
   const first = target && [...STOCK_MACROS].sort((a, b) => t[a.key] / target[a.key] - t[b.key] / target[b.key])[0];
   return (
     <div className="stock-totals">
+      {title && <strong>{title}</strong>}
       <div className="stock-kcal">
         <strong>{Math.round(t.kcal).toLocaleString()}</strong>
         <span className="small muted">kcal at home</span>

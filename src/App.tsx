@@ -65,7 +65,7 @@ function Onboarding() {
   );
 }
 
-function Tabs() {
+export function Tabs() {
   const { userId } = useAccount();
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('food');
   const [adding, setAdding] = useState(false);
@@ -74,29 +74,29 @@ function Tabs() {
   }, [userId]);
   const tabButton = (t: (typeof TABS)[number]) => (
     <button key={t.key} type="button" aria-current={t.key === tab} onClick={() => t.key !== tab && animate('fade', () => setTab(t.key))}>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d={t.icon} />
-      </svg>
+      <span className="tab-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={t.icon} />
+        </svg>
+      </span>
       {t.label}
     </button>
   );
   return (
     <>
       {tab === 'food' ? <FoodScreen adding={adding} setAdding={setAdding} /> : createElement(SCREENS[tab])}
-      <nav className="tabbar">
-        {TABS.slice(0, 2).map(tabButton)}
-        {/* Adding food always happens on the Food tab, for the day it shows. */}
-        <button
-          type="button"
-          className="tab-add"
-          aria-label="Add food"
-          onClick={() => (tab === 'food' ? setAdding(true) : animate('fade', () => { setTab('food'); setAdding(true); }))}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-        {TABS.slice(2).map(tabButton)}
-      </nav>
+      {/* Android's own bottom navigation bar (Material 3), with the add button floating above it. */}
+      <nav className="tabbar">{TABS.map(tabButton)}</nav>
+      {/* Adding food always happens on the Food tab, for the day it shows. */}
+      <button
+        type="button"
+        className="tab-add"
+        aria-label="Add food"
+        onClick={() => (tab === 'food' ? setAdding(true) : animate('fade', () => { setTab('food'); setAdding(true); }))}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
     </>
   );
 }
