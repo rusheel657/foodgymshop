@@ -92,7 +92,7 @@ function StockChanges({ foods }: { foods: Food[] }) {
               .map((c) => {
                 const f = foods.find((x) => x.id === c.foodId);
                 const piece = f?.pieceGrams;
-                const show = (g: number | null) => (g === null ? 'any' : amountLabel(g, piece));
+                const show = (g: number | null) => (g === null ? 'any' : amountLabel(g, piece, f?.liquid));
                 const delta = c.before !== null && c.after !== null ? c.after - c.before : null;
                 const kind = delta === null ? 'set' : delta < 0 ? 'down' : 'up';
                 return (
@@ -107,7 +107,7 @@ function StockChanges({ foods }: { foods: Food[] }) {
                       </span>
                     </span>
                     <span className="change-amount">
-                      <strong>{delta === null ? show(c.after) : `${delta > 0 ? '+' : '−'}${amountLabel(Math.abs(delta), piece)}`}</strong>
+                      <strong>{delta === null ? show(c.after) : `${delta > 0 ? '+' : '−'}${amountLabel(Math.abs(delta), piece, f?.liquid)}`}</strong>
                       <span className="small muted">
                         {show(c.before)} → {show(c.after)}
                       </span>
@@ -181,7 +181,7 @@ export function StockTotals({ foods, title }: { foods: Food[]; title?: string })
                 <span className="grow">
                   {f.name}
                   <span className="small muted">
-                    {amountLabel(f.homeGrams!, f.pieceGrams)} at home · {Math.round((g / t[open]) * 100)}% of it
+                    {amountLabel(f.homeGrams!, f.pieceGrams, f.liquid)} at home · {Math.round((g / t[open]) * 100)}% of it
                   </span>
                 </span>
                 <strong>{Math.round(g)} g</strong>
@@ -220,7 +220,7 @@ function HomeRow({ food: f }: { food: Food }) {
           label={`Amount of ${f.name} at home`}
           value={amount}
           placeholder="any"
-          suffix={unitOf(f.pieceGrams)}
+          suffix={unitOf(f.pieceGrams, f.liquid)}
           onChange={(t) => {
             setAmount(t);
             const n = toGrams(num(t), f.pieceGrams);
@@ -430,7 +430,7 @@ function OptionItems({ items, foods, butterId }: { items: LogItem[]; foods: Food
     <>
       {items.map((i) => (
         <div key={i.foodId} className="option-item">
-          <strong>{amountLabel(i.grams, foods.find((f) => f.id === i.foodId)?.pieceGrams)}</strong>
+          <strong>{(() => { const f = foods.find((x) => x.id === i.foodId); return amountLabel(i.grams, f?.pieceGrams, f?.liquid); })()}</strong>
           <span>
             {i.name}
             <span className="small muted">
@@ -565,7 +565,7 @@ function MealBuilderScreen({ target, loggedAt }: { target: Macros; loggedAt: str
                 return (
                   <button key={t.food.id} type="button" className="builder-tip" onClick={() => setPicked((p) => [...p, t.food.id])}>
                     <span className="grow">
-                      <strong>+ {amountLabel(add.grams, t.food.pieceGrams)} {t.food.name}</strong>
+                      <strong>+ {amountLabel(add.grams, t.food.pieceGrams, t.food.liquid)} {t.food.name}</strong>
                       <span className="small muted">
                         then P {r(after.protein)}/{r(target.protein)} · C {r(after.carbs)}/{r(target.carbs)} · F {r(after.fat)}/{r(target.fat)}
                       </span>

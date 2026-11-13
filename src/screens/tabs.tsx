@@ -30,7 +30,7 @@ export function ShopScreen() {
           <div key={f.id} className={f.shopQty > 0 ? 'shop-row active' : 'shop-row'}>
             <span>
               <span className="list-title">{f.name}</span>
-              {f.packGrams !== null && <span className="small muted">{amountLabel(f.packGrams, f.pieceGrams)} pack</span>}
+              {f.packGrams !== null && <span className="small muted">{amountLabel(f.packGrams, f.pieceGrams, f.liquid)} pack</span>}
             </span>
             <span className="stepper">
               <button

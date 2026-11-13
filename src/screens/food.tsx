@@ -288,10 +288,11 @@ type MacroKey = 'protein' | 'carbs' | 'fat';
 
 /** Where a macro came from that day: each food's grams of it, most first. */
 function MacroSources({ kind, logs, foods, today, onClose }: { kind: MacroKey; logs: FoodLog[]; foods: Food[]; today: boolean; onClose: () => void }) {
-  const byFood = new Map<string, { key: string; name: string; grams: number; g: number; piece?: number | null }>();
+  const byFood = new Map<string, { key: string; name: string; grams: number; g: number; piece?: number | null; liquid?: boolean }>();
   for (const i of logs.flatMap((l) => l.items)) {
     const key = i.foodId ?? i.name;
-    const row = byFood.get(key) ?? { key, name: i.name, grams: 0, g: 0, piece: foods.find((f) => f.id === i.foodId)?.pieceGrams };
+    const food = foods.find((f) => f.id === i.foodId);
+    const row = byFood.get(key) ?? { key, name: i.name, grams: 0, g: 0, piece: food?.pieceGrams, liquid: food?.liquid };
     row.grams += i.grams;
     row.g += macrosFor(i.per100, i.grams)[kind];
     byFood.set(key, row);
@@ -307,7 +308,7 @@ function MacroSources({ kind, logs, foods, today, onClose }: { kind: MacroKey; l
           <div key={r.key} className="list-row">
             <span>
               <span className="list-title">{r.name}</span>
-              <span className="small muted">{amountLabel(r.grams, r.piece)} · {Math.round((r.g / total) * 100)}%</span>
+              <span className="small muted">{amountLabel(r.grams, r.piece, r.liquid)} · {Math.round((r.g / total) * 100)}%</span>
             </span>
             <strong>{Math.round(r.g)} g</strong>
           </div>

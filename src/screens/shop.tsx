@@ -229,9 +229,9 @@ export function SmartList() {
                 </span>
               </span>
               <span className="buy-amount">
-                <strong>{packs !== null ? `${packs} × ${amountLabel(f.packGrams!, f.pieceGrams)}` : amountLabel(b.grams, f.pieceGrams)}</strong>
+                <strong>{packs !== null ? `${packs} × ${amountLabel(f.packGrams!, f.pieceGrams, f.liquid)}` : amountLabel(b.grams, f.pieceGrams, f.liquid)}</strong>
                 <span className="small muted">
-                  {packs !== null && `need ${amountLabel(b.grams, f.pieceGrams)}`}
+                  {packs !== null && `need ${amountLabel(b.grams, f.pieceGrams, f.liquid)}`}
                   {packs !== null && price !== null && ' · '}
                   {price !== null && money(price)}
                 </span>
@@ -370,7 +370,7 @@ function StockCard({ tone, title, note, foods, amounts }: { tone: 'out' | 'low' 
         {foods.map((f) => (
           <span key={f.id} className="stock-chip">
             {f.name}
-            {amounts && f.homeGrams !== null && <span className="muted"> · {amountLabel(f.homeGrams, f.pieceGrams)}</span>}
+            {amounts && f.homeGrams !== null && <span className="muted"> · {amountLabel(f.homeGrams, f.pieceGrams, f.liquid)}</span>}
           </span>
         ))}
       </div>
@@ -416,10 +416,10 @@ function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan:
             {f.name}
             <span className="small muted">
               {f.homeGrams === null
-                ? `any amount · counted as ${amountLabel(grams, f.pieceGrams)}`
+                ? `any amount · counted as ${amountLabel(grams, f.pieceGrams, f.liquid)}`
                 : grams < f.homeGrams - 0.5
-                  ? `${amountLabel(grams, f.pieceGrams)} of ${amountLabel(f.homeGrams, f.pieceGrams)} · daily limit`
-                  : amountLabel(grams, f.pieceGrams)}
+                  ? `${amountLabel(grams, f.pieceGrams, f.liquid)} of ${amountLabel(f.homeGrams, f.pieceGrams, f.liquid)} · daily limit`
+                  : amountLabel(grams, f.pieceGrams, f.liquid)}
             </span>
           </span>
           <strong>{Math.round(g)} g</strong>
@@ -434,7 +434,7 @@ function Sources({ macro, plan }: { macro: (typeof MACROS)[number]['key']; plan:
         <div key={f.id} className="src-row">
           <span className="grow">
             {f.name}
-            <span className="small muted">buy {amountLabel(grams, f.pieceGrams)}</span>
+            <span className="small muted">buy {amountLabel(grams, f.pieceGrams, f.liquid)}</span>
           </span>
           <strong>+{Math.round(g)} g</strong>
         </div>

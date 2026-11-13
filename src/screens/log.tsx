@@ -201,7 +201,7 @@ export function QuickLogScreen({ loggedAt }: { loggedAt: string }) {
                   letter={f.name}
                   tone={mainMacro(f)}
                   title={f.name}
-                  side={amountLabel(g, f.pieceGrams)}
+                  side={amountLabel(g, f.pieceGrams, f.liquid)}
                   m={macrosFor(f, g)}
                   extra={wanted.has(f.id) ? <span className="tag">GOES WITH</span> : undefined}
                   picked={picked.includes(f.id) ? 1 : 0}
@@ -269,7 +269,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
 
   const rows = items.map((r) => {
     const g = toGrams(num(r.amount), pieceOf(r.item));
-    return { ...r, piece: pieceOf(r.item), g, price: priceFor(r.item.foodId, g || 0, foods) };
+    return { ...r, piece: pieceOf(r.item), liquid: foods.find((f) => f.id === r.item.foodId)?.liquid, g, price: priceFor(r.item.foodId, g || 0, foods) };
   });
   const total = sumMacros(rows.map((r) => macrosFor(r.item.per100, r.g || 0)));
   const invalid =
@@ -358,7 +358,7 @@ function LogForm({ log, isNew, notice, aiItems, foods, meals }: {
                 label={`${r.item.name} amount`}
                 value={r.amount}
                 onChange={(amount) => setItems((list) => list.map((x, j) => (j === i ? { ...x, amount } : x)))}
-                suffix={unitOf(r.piece)}
+                suffix={unitOf(r.piece, r.liquid)}
               />
               <button
                 type="button"

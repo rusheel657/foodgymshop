@@ -22,7 +22,7 @@ const MAX_PHOTOS = 2;
 
 const newFood = (patch: Partial<Food>): Food => ({
   id: crypto.randomUUID(), name: '', kcal: 0, protein: 0, carbs: 0, fat: 0, defaultGrams: null,
-  source: 'manual', sourceId: null, barcode: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null, pairsWith: [], disabled: false, recipeOnly: false, photo: null, ...patch,
+  source: 'manual', sourceId: null, barcode: null, shopQty: 0, atHome: false, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null, pairsWith: [], disabled: false, recipeOnly: false, liquid: false, photo: null, ...patch,
 });
 
 export function MyDietScreen() {
@@ -226,6 +226,8 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   });
   const [pairs, setPairs] = useState(food.pairsWith);
   const [recipeOnly, setRecipeOnly] = useState(food.recipeOnly);
+  const [liquid, setLiquid] = useState(food.liquid);
+  const u = liquid ? 'ml' : 'g';
   const [photo, setPhoto] = useState(food.photo);
   const allFoods = useLive(() => listFoods(true), ['foods']);
   const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
@@ -271,7 +273,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
   async function save() {
     await saveFood(userId, {
       ...food, ...macros, name: d.name.trim(), defaultGrams: grams, packGrams: pack, packPrice: price,
-      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo, recipeOnly,
+      pieceGrams: piece, dailyMaxGrams: limit, minGrams: min, maxPortionGrams: max, pairsWith: pairs, photo, recipeOnly, liquid,
     });
     // shortcut: a photo taken and then abandoned (back without saving) stays on disk, like meal photos.
     if (food.photo && food.photo !== photo) await deletePhoto(food.photo);
@@ -371,7 +373,14 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
         ) : null}
         <Button title="Find a photo online" variant="secondary" onClick={findOnline} busy={finding} />
       </Field>
-      <Field label="Per 100 g">
+      <Field label="Measured in" hint="Drinks and other liquids in millilitres. Nutrition is then per 100 ml (1 ml counts as 1 g).">
+        <Segmented
+          options={[{ value: 'g', label: 'Grams' }, { value: 'ml', label: 'Millilitres' }] as const}
+          value={u}
+          onChange={(v) => setLiquid(v === 'ml')}
+        />
+      </Field>
+      <Field label={`Per 100 ${u}`}>
         <div className="grid-2">
           <NumberInput label="Calories" value={d.kcal} onChange={(kcal) => set({ kcal })} suffix="kcal" />
           <NumberInput label="Protein" value={d.protein} onChange={(protein) => set({ protein })} suffix="g P" />
@@ -379,8 +388,8 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
           <NumberInput label="Fat" value={d.fat} onChange={(fat) => set({ fat })} suffix="g F" />
         </div>
       </Field>
-      <Field label="Shopping size" hint={piece ? 'Optional. How many pieces come in one pack you buy.' : 'Optional. Grams (or ml for drinks) in one pack you buy, e.g. 500 for a 500 g tub.'}>
-        <NumberInput label="Shopping size" value={d.pack} onChange={(p) => set({ pack: p })} suffix={piece ? 'pcs a pack' : 'g or ml a pack'} placeholder="none" />
+      <Field label="Shopping size" hint={piece ? 'Optional. How many pieces come in one pack you buy.' : `Optional. ${liquid ? 'Millilitres' : 'Grams'} in one pack you buy, e.g. ${liquid ? '1000 for a 1 litre carton' : '500 for a 500 g tub'}.`}>
+        <NumberInput label="Shopping size" value={d.pack} onChange={(p) => set({ pack: p })} suffix={piece ? 'pcs a pack' : `${u} a pack`} placeholder="none" />
       </Field>
       <Field label="Price" hint="Optional. What one pack costs. Your meals on the Food screen show what they cost.">
         <NumberInput label="Price" value={d.price} onChange={(p) => set({ price: p })} suffix="£ a pack" placeholder="none" />
@@ -388,16 +397,16 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
         {priceNote && <p className="small muted">{priceNote}</p>}
       </Field>
       <Field label="Usual portion" hint="Optional. Used when you add this food to a meal.">
-        <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix="g" />
+        <NumberInput label="Usual portion" value={d.defaultGrams} onChange={(defaultGrams) => set({ defaultGrams })} suffix={u} />
       </Field>
       <Field label="Counted in pieces" hint="Optional. Weight of one piece, e.g. 50 g for an egg, 24 g for a Medjool date. You then log it as a number of pieces.">
         <NumberInput label="Grams per piece" value={d.pieceGrams} onChange={(pieceGrams) => set({ pieceGrams })} suffix="g each" />
       </Field>
       <Field label="Daily limit" hint="Optional. The most you want in a day; What should I eat? never goes over it.">
-        <NumberInput label="Daily limit" value={d.dailyMax} onChange={(dailyMax) => set({ dailyMax })} suffix={piece ? 'pcs a day' : 'g a day'} placeholder="none" />
+        <NumberInput label="Daily limit" value={d.dailyMax} onChange={(dailyMax) => set({ dailyMax })} suffix={piece ? 'pcs a day' : `${u} a day`} placeholder="none" />
       </Field>
       <Field label="Smallest portion" hint="Optional. What should I eat? either leaves it out or gives you at least this much.">
-        <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece)} placeholder="none" />
+        <NumberInput label="Smallest portion" value={d.min} onChange={(m) => set({ min: m })} suffix={unitOf(piece, liquid)} placeholder="none" />
       </Field>
       <Field label="Suggest it" hint="Cooking and saved meals only: What should I eat? never picks it on its own (like butter you only cook with or use in one recipe). It still goes into your saved meals and as cooking fat.">
         <Segmented
@@ -407,7 +416,7 @@ function FoodFormScreen({ food, isNew, popCount = 1, notice }: {
         />
       </Field>
       <Field label="Largest portion" hint="Optional. The most What should I eat? suggests at once. Without it, that's about twice your usual portion.">
-        <NumberInput label="Largest portion" value={d.max} onChange={(m) => set({ max: m })} suffix={unitOf(piece)} placeholder="auto" />
+        <NumberInput label="Largest portion" value={d.max} onChange={(m) => set({ max: m })} suffix={unitOf(piece, liquid)} placeholder="auto" />
       </Field>
       <Field label="Only eat with" hint="Optional. Quick add reminds you to add these, and What should I eat? only suggests this food together with all of them.">
         {allFoods && pairs.length > 0 && (
@@ -553,7 +562,7 @@ function MealForm({ meal, isNew, foods }: { meal: Meal; isNew?: boolean; foods: 
                   label={`${food.name} amount`}
                   value={item.amount}
                   onChange={(amount) => setItems((list) => list.map((x, j) => (j === item.idx ? { ...x, amount } : x)))}
-                  suffix={unitOf(food.pieceGrams)}
+                  suffix={unitOf(food.pieceGrams, food.liquid)}
                 />
                 <button
                   type="button"

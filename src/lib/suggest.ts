@@ -5,7 +5,7 @@ type Macros = { kcal: number; protein: number; carbs: number; fat: number };
 /** `pieceGrams`: counted foods (eggs) are suggested in whole pieces. `minGrams`: smallest portion worth eating.
  *  `needs`: ids of foods this one is only eaten with (yoghurt → honey, fruit, chocolate). */
 export type SuggestFood = Macros & {
-  id: string; name: string; maxGrams: number; pieceGrams?: number | null; minGrams?: number | null; needs?: string[];
+  id: string; name: string; maxGrams: number; pieceGrams?: number | null; minGrams?: number | null; needs?: string[]; liquid?: boolean;
 };
 export type Suggestion = { foodId: string; name: string; grams: number };
 

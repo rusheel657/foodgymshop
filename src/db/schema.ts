@@ -192,4 +192,6 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE foods ADD COLUMN recipe_only INTEGER NOT NULL DEFAULT 0;`,
   // 17: your own title for a logged meal (otherwise its saved meal's name or its foods).
   `ALTER TABLE food_logs ADD COLUMN name TEXT;`,
+  // 18: measured in millilitres instead of grams (drinks); 1 ml counts as 1 g.
+  `ALTER TABLE foods ADD COLUMN liquid INTEGER NOT NULL DEFAULT 0;`,
 ];

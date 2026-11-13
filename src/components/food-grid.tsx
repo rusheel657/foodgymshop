@@ -60,10 +60,10 @@ export function FoodGrid({ foods, links = foods, picked, wanted, onPick }: {
               )}
               <span className="food-card-body">
                 <span className="food-card-name">{f.name}</span>
-                <span className="small muted">{Math.round(f.kcal)} kcal · {Math.round(f.protein)}P /100 g</span>
+                <span className="small muted">{Math.round(f.kcal)} kcal · {Math.round(f.protein)}P /100 {f.liquid ? 'ml' : 'g'}</span>
                 {f.packGrams !== null && (
                   <span className="small muted">
-                    {f.packPrice !== null && `${money(f.packPrice)} · `}{amountLabel(f.packGrams, f.pieceGrams)} pack
+                    {f.packPrice !== null && `${money(f.packPrice)} · `}{amountLabel(f.packGrams, f.pieceGrams, f.liquid)} pack
                   </span>
                 )}
                 {needs.length > 0 && (

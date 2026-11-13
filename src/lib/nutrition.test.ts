@@ -132,3 +132,9 @@ test('grocery estimate for a whole pack → per 100 g, clamped to the food form 
   assert.equal(per100From({ ...item, kcal: null }), null);
   assert.equal(per100From({ ...item, grams: 10, kcal: 100 })?.kcal, 900);
 });
+
+test('amounts in millilitres for liquids, pieces still win', () => {
+  assert.equal(amountLabel(250, null, true), '250 ml');
+  assert.equal(amountLabel(250, null), '250 g');
+  assert.equal(amountLabel(100, 50, true), '2 pcs');
+});

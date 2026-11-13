@@ -155,11 +155,12 @@ export function showAmount(grams: number, pieceGrams?: number | null) {
   return String(pieceGrams ? Math.round((grams / pieceGrams) * 2) / 2 : Math.round(grams));
 }
 export const toGrams = (amount: number, pieceGrams?: number | null) => (pieceGrams ? amount * pieceGrams : amount);
-export const unitOf = (pieceGrams?: number | null) => (pieceGrams ? 'pcs' : 'g');
-/** "3 pcs" or "150 g". */
-export function amountLabel(grams: number, pieceGrams?: number | null) {
+/** `liquid`: measured in ml (1 ml counts as 1 g, as on drink labels' per-100 ml values). */
+export const unitOf = (pieceGrams?: number | null, liquid?: boolean) => (pieceGrams ? 'pcs' : liquid ? 'ml' : 'g');
+/** "3 pcs", "150 g" or "250 ml". */
+export function amountLabel(grams: number, pieceGrams?: number | null, liquid?: boolean) {
   const n = showAmount(grams, pieceGrams);
-  return `${n} ${pieceGrams && n === '1' ? 'pc' : unitOf(pieceGrams)}`;
+  return `${n} ${pieceGrams && n === '1' ? 'pc' : unitOf(pieceGrams, liquid)}`;
 }
 
 /** How long an amount lasts at a daily target: "under a day", "1 day", "2 days" (whole days, rounded down). */

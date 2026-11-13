@@ -68,7 +68,7 @@ export function GroceryScanScreen({ photo }: { photo: string }) {
         await saveFood(userId, {
           id, name: r.name, ...r.per100!, defaultGrams: null, source: 'manual', sourceId: 'ai-groceries', barcode: null,
           shopQty: 0, atHome: true, homeGrams: null, pieceGrams: null, dailyMaxGrams: null, minGrams: null, maxPortionGrams: null, packGrams: null, packPrice: null,
-          pairsWith: [], disabled: false, recipeOnly: false, photo: null,
+          pairsWith: [], disabled: false, recipeOnly: false, liquid: false, photo: null,
         });
       }
       await restock(id, grams(r));
@@ -107,7 +107,7 @@ export function GroceryScanScreen({ photo }: { photo: string }) {
                       </span>
                     </span>
                   </label>
-                  <NumberInput label={`Amount of ${r.name}`} value={r.amount} onChange={(amount) => set({ amount })} suffix={unitOf(r.food?.pieceGrams)} />
+                  <NumberInput label={`Amount of ${r.name}`} value={r.amount} onChange={(amount) => set({ amount })} suffix={unitOf(r.food?.pieceGrams, r.food?.liquid)} />
                 </div>
               );
             })}

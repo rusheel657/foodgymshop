@@ -22,6 +22,7 @@ export type Food = Macros & {
   pairsWith: string[]; // food ids it's only eaten with (yoghurt → honey, fruit, chocolate)
   photo: string | null; // file URI of its photo
   disabled: boolean; // switched off in My Diet; past entries keep their own copy of its macros either way
+  liquid: boolean; // measured in ml rather than g (1 ml counts as 1 g)
   recipeOnly: boolean; // only for cooking and saved meals: What should I eat? and the macro shopping lists never pick it on its own
 };
 
@@ -34,7 +35,7 @@ type FoodRow = {
   shop_unit: string | null; shop_qty: number; at_home: number; home_grams: number | null;
   piece_grams: number | null; daily_max_grams: number | null;
   min_grams: number | null; pairs_with: string; disabled: number; photo_path: string | null;
-  max_grams: number | null; pack_grams: number | null; pack_price: number | null; recipe_only: number;
+  max_grams: number | null; pack_grams: number | null; pack_price: number | null; recipe_only: number; liquid: number;
 };
 
 /** Foods in use; `withDisabled` also returns the ones switched off (My Diet, editing old entries). */
@@ -48,7 +49,7 @@ export async function listFoods(withDisabled = false): Promise<Food[]> {
     shopQty: r.shop_qty, atHome: !!r.at_home, homeGrams: r.home_grams,
     pieceGrams: r.piece_grams, dailyMaxGrams: r.daily_max_grams,
     minGrams: r.min_grams, pairsWith: JSON.parse(r.pairs_with), disabled: !!r.disabled, photo: r.photo_path,
-    maxPortionGrams: r.max_grams, packGrams: r.pack_grams, packPrice: r.pack_price, recipeOnly: !!r.recipe_only,
+    maxPortionGrams: r.max_grams, packGrams: r.pack_grams, packPrice: r.pack_price, recipeOnly: !!r.recipe_only, liquid: !!r.liquid,
   }));
 }
 
@@ -57,8 +58,8 @@ export async function saveFood(userId: string, f: Food) {
     run(
       `INSERT INTO foods (id, user_id, updated_at, dirty, name, kcal_100g, protein_100g, carbs_100g, fat_100g,
                           default_grams, source, source_id, barcode, shop_qty, piece_grams, daily_max_grams,
-                          min_grams, pairs_with, photo_path, max_grams, pack_grams, pack_price, recipe_only)
-       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          min_grams, pairs_with, photo_path, max_grams, pack_grams, pack_price, recipe_only, liquid)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET
          updated_at = excluded.updated_at, dirty = 1, name = excluded.name,
          kcal_100g = excluded.kcal_100g, protein_100g = excluded.protein_100g, carbs_100g = excluded.carbs_100g,
@@ -66,10 +67,10 @@ export async function saveFood(userId: string, f: Food) {
          piece_grams = excluded.piece_grams, daily_max_grams = excluded.daily_max_grams,
          min_grams = excluded.min_grams, pairs_with = excluded.pairs_with, photo_path = excluded.photo_path,
          max_grams = excluded.max_grams, pack_grams = excluded.pack_grams, pack_price = excluded.pack_price,
-         recipe_only = excluded.recipe_only`,
+         recipe_only = excluded.recipe_only, liquid = excluded.liquid`,
       [f.id, userId, new Date().toISOString(), f.name, f.kcal, f.protein, f.carbs, f.fat, f.defaultGrams,
         f.source, f.sourceId, f.barcode, f.shopQty, f.pieceGrams, f.dailyMaxGrams,
-        f.minGrams, JSON.stringify(f.pairsWith), f.photo, f.maxPortionGrams, f.packGrams, f.packPrice, f.recipeOnly ? 1 : 0],
+        f.minGrams, JSON.stringify(f.pairsWith), f.photo, f.maxPortionGrams, f.packGrams, f.packPrice, f.recipeOnly ? 1 : 0, f.liquid ? 1 : 0],
     ),
   );
 }
